@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Manifest Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#14161A;
+    --panel:#1D2025;
+    --panel-2:#262A31;
+    --border:#343A42;
+    --text:#ECE9E2;
+    --muted:#878C94;
+    --amber:#FFB020;
+    --amber-dim:#4A3A17;
+    --green:#3ED98B;
+    --green-dim:#153826;
+    --red:#FF5A5A;
+    --red-dim:#3A1919;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+    --display:'Space Grotesk', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--display);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding-bottom:78px;
+  }
+  ::selection{background:var(--amber);color:#1a1200;}
+
+  /* ---- header ---- */
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg, var(--bg) 70%, rgba(20,22,26,0));
+    padding:16px 16px 6px;
+  }
+  .eyebrow{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em;
+    color:var(--muted); text-transform:uppercase;
+  }
+  .eyebrow .sq{width:8px;height:8px;background:var(--amber);display:inline-block;border-radius:1px;}
+  h1{
+    font-family:var(--display); font-weight:700; font-size:22px; margin:4px 0 12px;
+    letter-spacing:-0.01em;
+  }
+  .progress-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+    position:relative;
+    overflow:hidden;
+  }
+  .progress-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;}
+  .progress-count{font-family:var(--mono); font-size:26px; font-weight:600;}
+  .progress-count small{font-size:13px; color:var(--muted); font-weight:400;}
+  .progress-pct{font-family:var(--mono); color:var(--amber); font-size:14px;}
+  .bar-track{height:8px; background:var(--panel-2); border-radius:5px; overflow:hidden;}
+  .bar-fill{height:100%; background:linear-gradient(90deg, var(--amber), var(--green)); width:0%; transition:width .4s ease;}
+  .manifest-meta{margin-top:8px; font-family:var(--mono); font-size:11px; color:var(--muted); display:flex; justify-content:space-between;}
+
+  /* ---- generic panel ---- */
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:14px 16px; margin:12px 16px;
+  }
+  .panel h2{
+    font-size:13px; text-transform:uppercase; letter-spacing:.1em; color:var(--muted);
+    margin:0 0 10px; font-family:var(--mono); font-weight:600;
+  }
+  .btn{
+    appearance:none; border:1px solid var(--border); background:var(--panel-2); color:var(--text);
+    font-family:var(--display); font-weight:600; font-size:14px;
+    padding:12px 16px; border-radius:8px; cursor:pointer; min-height:44px;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    transition:transform .08s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn:focus-visible{outline:2px solid var(--amber); outline-offset:2px;}
+  .btn-primary{background:var(--amber); color:#1a1200; border-color:var(--amber);}
+  .btn-danger{background:var(--red-dim); color:#ffd1d1; border-color:#5a2323;}
+  .btn-block{width:100%;}
+  .btn-sm{padding:8px 12px; font-size:12px; min-height:36px;}
+  .btn[disabled]{opacity:.45; cursor:not-allowed;}
+  input[type=file]{display:none;}
+
+  .field{
+    width:100%; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    font-family:var(--mono); font-size:14px; padding:11px 12px; border-radius:8px; min-height:44px;
+  }
+  .field:focus{outline:2px solid var(--amber); outline-offset:1px;}
+  .row{display:flex; gap:8px;}
+  .row > *{flex:1;}
+
+  .segmented{display:flex; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+  .segmented button{
+    flex:1; background:none; border:none; color:var(--muted); font-family:var(--mono); font-size:12px;
+    padding:9px 4px; cursor:pointer; letter-spacing:.05em;
+  }
+  .segmented button.active{background:var(--amber); color:#1a1200; font-weight:600;}
+
+  /* ---- manifest list ---- */
+  .list{max-height:52vh; overflow-y:auto; margin-top:10px; border-top:1px solid var(--border);}
+  .list-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 2px; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:13px;
+    cursor:pointer;
+  }
+  .list-row:active{background:var(--panel-2);}
+  .status-dot{width:9px; height:9px; border-radius:50%; flex:none; background:var(--muted);}
+  .status-dot.done{background:var(--green);}
+  .code-text{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .code-text.done{color:var(--green);}
+  .ts{color:var(--muted); font-size:11px; flex:none;}
+  .empty-note{color:var(--muted); font-size:13px; padding:18px 2px; text-align:center;}
+
+  /* ---- upload dropzone ---- */
+  .dropzone{
+    border:1px dashed var(--border); border-radius:10px; padding:24px 16px; text-align:center;
+    color:var(--muted); font-size:13px;
+  }
+  .dropzone strong{color:var(--text); display:block; font-family:var(--display); font-size:15px; margin-bottom:4px;}
+  .upload-progress{margin-top:10px;}
+  .upload-progress .bar-track{height:6px;}
+
+  /* ---- recent scans log ---- */
+  #recentList{max-height:220px; overflow-y:auto;}
+  .recent-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 8px; border-left:3px solid var(--muted); border-bottom:1px solid var(--border);
+    font-family:var(--mono); font-size:13px; border-radius:4px; margin-bottom:4px;
+    background:var(--panel-2);
+  }
+  .recent-row.state-done{border-left-color:var(--green);}
+  .recent-row.state-dup{border-left-color:var(--amber);}
+  .recent-row.state-miss{border-left-color:var(--red);}
+
+  /* ---- scan view ---- */
+  .scan-wrap{margin:12px 16px;}
+  #reader{
+    width:100%; border-radius:12px; overflow:hidden; background:#000; border:1px solid var(--border);
+    min-height:220px;
+  }
+  #reader video{width:100% !important;}
+  .scan-controls{display:flex; gap:8px; margin-top:10px;}
+  .scan-hint{font-size:12px; color:var(--muted); margin-top:8px; text-align:center;}
+
+  /* ticket-style result stub, torn-edge signature element */
+  .ticket-wrap{position:fixed; left:0; right:0; bottom:78px; z-index:30; display:flex; justify-content:center; pointer-events:none;}
+  .ticket{
+    pointer-events:auto;
+    width:calc(100% - 32px); max-width:520px;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:0 0 10px 10px;
+    padding:16px 18px 14px;
+    transform:translateY(120%);
+    transition:transform .28s cubic-bezier(.2,.9,.3,1.2);
+    position:relative;
+  }
+  .ticket.show{transform:translateY(0);}
+  .ticket::before{
+    content:"";
+    position:absolute; top:-1px; left:0; right:0; height:10px;
+    background-image:radial-gradient(circle at 10px 0, var(--bg) 6px, transparent 6.5px);
+    background-size:20px 10px;
+    background-repeat:repeat-x;
+  }
+  .ticket.state-ok{border-top:3px solid var(--green);}
+  .ticket.state-dup{border-top:3px solid var(--amber);}
+  .ticket.state-miss{border-top:3px solid var(--red);}
+  .ticket .t-status{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:4px;}
+  .ticket.state-ok .t-status{color:var(--green);}
+  .ticket.state-dup .t-status{color:var(--amber);}
+  .ticket.state-miss .t-status{color:var(--red);}
+  .ticket .t-code{font-family:var(--mono); font-size:16px; font-weight:600; word-break:break-all;}
+  .ticket .t-sub{font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:4px;}
+
+  /* ---- bottom tabs ---- */
+  .tabbar{
+    position:fixed; bottom:0; left:0; right:0; z-index:40;
+    display:flex; background:var(--panel); border-top:1px solid var(--border);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .tab{
+    flex:1; background:none; border:none; color:var(--muted); font-family:var(--display);
+    font-weight:600; font-size:13px; padding:14px 0 10px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .tab .dot{width:6px;height:6px;border-radius:50%;background:transparent;}
+  .tab.active{color:var(--amber);}
+  .tab.active .dot{background:var(--amber);}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  @media (prefers-reduced-motion: reduce){
+    .ticket{transition:none;}
+    .bar-fill{transition:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="eyebrow"><span class="sq"></span> Cargo Manifest</div>
+  <h1>Box Label Queue</h1>
+  <div class="progress-card">
+    <div class="progress-row">
+      <div class="progress-count" id="doneCount">0 <small>/ 0 boxes</small></div>
+      <div class="progress-pct" id="pctText">0%</div>
+    </div>
+    <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+    <div class="manifest-meta">
+      <span id="fileMeta">No manifest loaded</span>
+      <span id="pendingMeta">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- MANIFEST VIEW -->
+<div class="view active" id="view-manifest">
+  <div class="panel">
+    <h2>Load Manifest</h2>
+    <label class="btn btn-primary btn-block" for="pdfInput">Upload label PDF</label>
+    <input type="file" id="pdfInput" accept="application/pdf">
+    <div class="dropzone" style="margin-top:10px;" id="dropzoneNote">
+      <strong>Expects one unique box label per page</strong>
+      Pulls the tracking code printed on each label (e.g. an FBA carton ID) and builds a checklist you can clear by scanning.
+    </div>
+    <div class="upload-progress" id="uploadProgressWrap" style="display:none;">
+      <div class="bar-track"><div class="bar-fill" id="uploadBarFill"></div></div>
+      <div class="scan-hint" id="uploadProgressText">Reading pages…</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Queue</h2>
+    <div class="row" style="margin-bottom:8px;">
+      <input class="field" id="searchInput" placeholder="Search code…">
+    </div>
+    <div class="segmented" id="filterSeg">
+      <button data-f="all" class="active">All</button>
+      <button data-f="pending">Pending</button>
+      <button data-f="done">Complete</button>
+    </div>
+    <div class="list" id="listEl"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Manage</h2>
+    <div class="row">
+      <button class="btn btn-sm" id="exportBtn">Export CSV</button>
+      <button class="btn btn-sm btn-danger" id="resetStatusBtn">Reset all to pending</button>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <button class="btn btn-sm btn-danger" id="clearManifestBtn">Clear manifest</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCAN VIEW -->
+<div class="view" id="view-scan">
+  <div class="scan-wrap">
+    <div class="panel" style="margin:0 0 12px;">
+      <h2>Input method</h2>
+      <div class="segmented" id="modeSeg">
+        <button data-mode="camera" class="active">Phone camera</button>
+        <button data-mode="gun">Scanner gun</button>
+      </div>
+    </div>
+
+    <div class="panel" id="cameraPanel" style="margin:0 0 12px;">
+      <h2>Scan a box</h2>
+      <div class="row" style="margin-bottom:8px;">
+        <select class="field" id="cameraSelect"></select>
+      </div>
+      <div id="reader"></div>
+      <div class="scan-controls">
+        <button class="btn btn-primary btn-block" id="startScanBtn">Start camera</button>
+        <button class="btn btn-danger" id="stopScanBtn" style="display:none;">Stop</button>
+      </div>
+      <div class="scan-hint" id="scanHint">Point the camera at the barcode on the box.</div>
+      <div class="row" style="margin-top:10px; gap:14px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);">
+          <input type="checkbox" id="autoStartChk"> Auto-start on load
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);">
+          <input type="checkbox" id="keepAwakeChk"> Keep screen awake
+        </label>
+      </div>
+    </div>
+
+    <div class="panel" id="recentPanel" style="margin:0 0 12px;">
+      <h2>Recent scans</h2>
+      <div id="recentList"><div class="empty-note">No scans yet.</div></div>
+    </div>
+
+    <div class="panel" id="gunPanel" style="display:none; margin:0 0 12px;">
+      <h2>Scanner gun</h2>
+      <input class="field" id="gunInput" placeholder="Ready — scan a box…" autocomplete="off" inputmode="none">
+      <div class="scan-hint">Pair your scanner gun as a Bluetooth or USB keyboard device. Leave this field focused — each scan submits itself automatically.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Manual entry</h2>
+      <div class="row">
+        <input class="field" id="manualInput" placeholder="Type or paste code…" autocomplete="off" autocapitalize="characters">
+        <button class="btn btn-primary" id="manualBtn" style="flex:0 0 auto;">Mark</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ticket-wrap"><div class="ticket" id="ticket">
+  <div class="t-status" id="ticketStatus">—</div>
+  <div class="t-code" id="ticketCode">—</div>
+  <div class="t-sub" id="ticketSub">—</div>
+</div></div>
+
+<div class="tabbar">
+  <button class="tab active" data-view="manifest"><span class="dot"></span>Manifest</button>
+  <button class="tab" data-view="scan"><span class="dot"></span>Scan</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+  // ======================================================================
+  // SUPABASE CONFIG — paste from Project Settings → Data API (URL) and
+  // Project Settings → API Keys → anon/public key
+  // ======================================================================
+  const SUPABASE_URL = "https://ufipqwxmkhyojvrfijfw.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmaXBxd3hta2h5b2p2cmZpamZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTE5NTIsImV4cCI6MjEwMDMyNzk1Mn0.2kJcSZBrrr0HegVkMzfOzAWINE1adtQC_LG53G5LpEg";
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let manifest = { fileName: null, codes: [], uploadedAt: null };
+  let status = {}; // code -> { done: bool, ts: iso string|null }
+  let filter = "all";
+  let searchTerm = "";
+  let html5Qrcode = null;
+  let scanning = false;
+  let lastScan = { code: null, time: 0 };
+  let selectedCameraId = localStorage.getItem("scanner:cameraId") || null;
+  let autoStart = localStorage.getItem("scanner:autoStart") === "1";
+  let keepAwake = localStorage.getItem("scanner:keepAwake") !== "0";
+  let wakeLockObj = null;
+  let recentScans = [];
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- storage (Supabase Postgres + Realtime, synced across devices) ----------
+  function applyBoxRows(rows){
+    const sorted = [...rows].sort((a, b) => a.idx - b.idx);
+    manifest.codes = sorted.map(r => r.code);
+    const newStatus = {};
+    sorted.forEach(r => { newStatus[r.code] = { done: !!r.done, ts: r.ts || null }; });
+    status = newStatus;
+  }
+
+  function applyMetaRow(row){
+    manifest.fileName = row ? row.file_name : null;
+    manifest.uploadedAt = row ? row.uploaded_at : null;
+  }
+
+  async function refetchBoxes(){
+    const { data, error } = await sb.from("boxes").select("*").order("idx", { ascending:true });
+    if (error){ console.error("Failed to load boxes", error); return; }
+    applyBoxRows(data || []);
+    render();
+  }
+
+  async function refetchMeta(){
+    const { data, error } = await sb.from("manifest_meta").select("*").eq("id", 1).maybeSingle();
+    if (error){ console.error("Failed to load manifest meta", error); return; }
+    applyMetaRow(data);
+    render();
+  }
+
+  async function loadData(){
+    await refetchBoxes();
+    await refetchMeta();
+
+    sb.channel("boxes-changes")
+      .on("postgres_changes", { event:"*", schema:"public", table:"boxes" }, () => { refetchBoxes(); })
+      .subscribe();
+
+    sb.channel("meta-changes")
+      .on("postgres_changes", { event:"*", schema:"public", table:"manifest_meta" }, () => { refetchMeta(); })
+      .subscribe();
+  }
+
+  // Single-code update — used for every scan/toggle so two devices scanning
+  // at the same moment can't clobber each other's writes.
+  async function saveStatusFor(code, value){
+    const { error } = await sb.from("boxes").update({ done: value.done, ts: value.ts }).eq("code", code);
+    if (error) console.error("Failed to save status for " + code, error);
+  }
+
+  // ---------- PDF parsing ----------
+  function extractCodeFromText(text, commonSet){
+    let m = text.match(/FBA[0-9A-Z]{6,}/);
+    if (m) return m[0];
+    const tokens = text.match(/\b[A-Z0-9]{8,}\b/g) || [];
+    let candidates = tokens.filter(t => !commonSet.has(t));
+    if (candidates.length === 0) candidates = tokens;
+    candidates.sort((a,b) => b.length - a.length);
+    return candidates[0] || null;
+  }
+
+  async function pageText(pdf, pageNum){
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    return content.items.map(i => i.str).join(" ").replace(/\s+/g, " ").toUpperCase();
+  }
+
+  async function handlePdfUpload(file){
+    const wrap = $("uploadProgressWrap");
+    const barFill = $("uploadBarFill");
+    const progressText = $("uploadProgressText");
+    wrap.style.display = "block";
+    barFill.style.width = "0%";
+    progressText.textContent = "Opening PDF…";
+
+    try{
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      const numPages = pdf.numPages;
+
+      // sample a few pages to find boilerplate tokens shared across every page
+      const sampleCount = Math.min(5, numPages);
+      const sampleTexts = [];
+      for (let i = 1; i <= sampleCount; i++) sampleTexts.push(await pageText(pdf, i));
+      let commonSet = null;
+      sampleTexts.forEach(t => {
+        const toks = new Set(t.match(/\b[A-Z0-9]{8,}\b/g) || []);
+        if (commonSet === null) commonSet = toks;
+        else commonSet = new Set([...commonSet].filter(x => toks.has(x)));
+      });
+      commonSet = commonSet || new Set();
+
+      const codes = [];
+      const seen = new Set();
+      for (let i = 1; i <= numPages; i++){
+        const text = await pageText(pdf, i);
+        const code = extractCodeFromText(text, commonSet);
+        if (code && !seen.has(code)){
+          seen.add(code);
+          codes.push(code);
+        }
+        if (i % 5 === 0 || i === numPages){
+          const pct = Math.round((i / numPages) * 100);
+          barFill.style.width = pct + "%";
+          progressText.textContent = "Reading page " + i + " / " + numPages;
+        }
+      }
+
+      if (codes.length === 0){
+        progressText.textContent = "Couldn't find any codes on these pages.";
+        return;
+      }
+
+      const existingDone = manifest.codes.length
+        ? manifest.codes.filter(c => status[c] && status[c].done).length
+        : 0;
+
+      if (manifest.codes.length && existingDone > 0){
+        const ok = confirm(
+          "This will replace the current manifest (" + existingDone + " / " + manifest.codes.length +
+          " already marked complete). Completed status is kept for any code that still matches. Continue?"
+        );
+        if (!ok){ wrap.style.display = "none"; return; }
+      }
+
+      const rows = codes.map((code, idx) => {
+        const prev = status[code];
+        return { code, idx, done: !!(prev && prev.done), ts: prev ? prev.ts : null };
+      });
+
+      progressText.textContent = "Saving manifest…";
+      const { error: delErr } = await sb.from("boxes").delete().gte("idx", 0);
+      if (delErr){ console.error(delErr); progressText.textContent = "Couldn't save to Supabase."; return; }
+
+      const CHUNK = 500;
+      for (let i = 0; i < rows.length; i += CHUNK){
+        const chunk = rows.slice(i, i + CHUNK);
+        const { error: insErr } = await sb.from("boxes").insert(chunk);
+        if (insErr){ console.error(insErr); progressText.textContent = "Couldn't save to Supabase."; return; }
+      }
+
+      const uploadedAt = new Date().toISOString();
+      const { error: metaErr } = await sb.from("manifest_meta")
+        .upsert({ id:1, file_name:file.name, uploaded_at:uploadedAt });
+      if (metaErr) console.error(metaErr);
+
+      const newStatus = {};
+      rows.forEach(r => { newStatus[r.code] = { done:r.done, ts:r.ts }; });
+      status = newStatus;
+      manifest = { fileName: file.name, codes: codes, uploadedAt: uploadedAt };
+
+      progressText.textContent = "Loaded " + codes.length + " unique labels.";
+      render();
+    }catch(err){
+      console.error(err);
+      progressText.textContent = "Couldn't read that PDF. Try a different file.";
+    }
+  }
+
+  // ---------- rendering ----------
+  function computeCounts(){
+    const total = manifest.codes.length;
+    let done = 0;
+    manifest.codes.forEach(c => { if (status[c] && status[c].done) done++; });
+    return { total, done, pending: total - done };
+  }
+
+  function render(){
+    const { total, done, pending } = computeCounts();
+    $("doneCount").innerHTML = done + ' <small>/ ' + total + ' boxes</small>';
+    $("pctText").textContent = total ? Math.round((done/total)*100) + "%" : "0%";
+    $("barFill").style.width = total ? ((done/total)*100) + "%" : "0%";
+    $("fileMeta").textContent = manifest.fileName ? manifest.fileName : "No manifest loaded";
+    $("pendingMeta").textContent = total ? pending + " pending" : "—";
+
+    renderList();
+  }
+
+  function renderList(){
+    const listEl = $("listEl");
+    const term = searchTerm.trim().toUpperCase();
+    let codes = manifest.codes;
+    if (filter === "pending") codes = codes.filter(c => !(status[c] && status[c].done));
+    if (filter === "done") codes = codes.filter(c => status[c] && status[c].done);
+    if (term) codes = codes.filter(c => c.includes(term));
+
+    if (codes.length === 0){
+      listEl.innerHTML = '<div class="empty-note">' +
+        (manifest.codes.length === 0 ? "Upload a manifest PDF to build the queue." : "No labels match.") +
+        '</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    codes.forEach(code => {
+      const s = status[code] || { done:false, ts:null };
+      const row = document.createElement("div");
+      row.className = "list-row";
+      row.dataset.code = code;
+      const timeStr = s.done && s.ts ? new Date(s.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : "";
+      row.innerHTML =
+        '<span class="status-dot' + (s.done ? ' done' : '') + '"></span>' +
+        '<span class="code-text' + (s.done ? ' done' : '') + '">' + code + '</span>' +
+        '<span class="ts">' + timeStr + '</span>';
+      frag.appendChild(row);
+    });
+    listEl.innerHTML = "";
+    listEl.appendChild(frag);
+  }
+
+  $("listEl").addEventListener("click", async (e) => {
+    const row = e.target.closest(".list-row");
+    if (!row) return;
+    const code = row.dataset.code;
+    const cur = status[code] || { done:false, ts:null };
+    const next = cur.done ? { done:false, ts:null } : { done:true, ts:new Date().toISOString() };
+    status[code] = next;
+    render();
+    await saveStatusFor(code, next);
+  });
+
+  $("searchInput").addEventListener("input", (e) => { searchTerm = e.target.value; renderList(); });
+  $("filterSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    filter = btn.dataset.f;
+    [...$("filterSeg").children].forEach(b => b.classList.toggle("active", b === btn));
+    renderList();
+  });
+
+  $("pdfInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) handlePdfUpload(file);
+    e.target.value = "";
+  });
+
+  $("exportBtn").addEventListener("click", () => {
+    if (!manifest.codes.length){ alert("No manifest to export."); return; }
+    let csv = "code,status,completed_at\n";
+    manifest.codes.forEach(c => {
+      const s = status[c] || { done:false, ts:null };
+      csv += c + "," + (s.done ? "complete" : "pending") + "," + (s.ts || "") + "\n";
+    });
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "manifest-status.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  $("resetStatusBtn").addEventListener("click", async () => {
+    if (!manifest.codes.length) return;
+    if (!confirm("Reset every code in this manifest back to pending?")) return;
+    const { error } = await sb.from("boxes").update({ done:false, ts:null }).gte("idx", 0);
+    if (error){ console.error(error); return; }
+    manifest.codes.forEach(c => { status[c] = { done:false, ts:null }; });
+    render();
+  });
+
+  $("clearManifestBtn").addEventListener("click", async () => {
+    if (!manifest.codes.length) return;
+    if (!confirm("Remove the manifest and all scan progress? This can't be undone.")) return;
+    const { error: e1 } = await sb.from("boxes").delete().gte("idx", 0);
+    const { error: e2 } = await sb.from("manifest_meta").delete().eq("id", 1);
+    if (e1) console.error(e1);
+    if (e2) console.error(e2);
+    manifest = { fileName:null, codes:[], uploadedAt:null };
+    status = {};
+    render();
+  });
+
+  // ---------- tabs ----------
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      const target = tab.dataset.view;
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      $("view-" + target).classList.add("active");
+      if (target !== "scan" && scanning) stopScanning();
+      if (target === "scan" && scanMode === "gun") focusGunInput();
+    });
+  });
+
+  // ---------- ticket feedback ----------
+  let ticketTimer = null;
+  function showTicket(state, code, sub){
+    const ticket = $("ticket");
+    ticket.className = "ticket show state-" + state;
+    $("ticketStatus").textContent = state === "ok" ? "Marked complete" : state === "dup" ? "Already scanned" : "Not in manifest";
+    $("ticketCode").textContent = code;
+    $("ticketSub").textContent = sub;
+    if (ticketTimer) clearTimeout(ticketTimer);
+    ticketTimer = setTimeout(() => { ticket.classList.remove("show"); }, 2600);
+  }
+
+  function beep(freq, dur){
+    try{
+      const ctx = beep.ctx || (beep.ctx = new (window.AudioContext || window.webkitAudioContext)());
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.connect(gain); gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      osc.start();
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+      osc.stop(ctx.currentTime + dur);
+    }catch(e){ /* audio not available */ }
+  }
+
+  function pushRecent(code, state, note){
+    recentScans.unshift({ code, state, note, time: new Date() });
+    if (recentScans.length > 8) recentScans.pop();
+    renderRecent();
+  }
+
+  function renderRecent(){
+    const el = $("recentList");
+    if (!recentScans.length){ el.innerHTML = '<div class="empty-note">No scans yet.</div>'; return; }
+    el.innerHTML = recentScans.map(r => {
+      const t = r.time.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      return '<div class="recent-row state-' + r.state + '">' +
+        '<span class="code-text">' + r.code + '</span>' +
+        '<span class="ts">' + t + '</span></div>';
+    }).join("");
+  }
+
+  async function processScannedCode(raw){
+    const code = (raw || "").trim().toUpperCase();
+    if (!code) return;
+    const now = Date.now();
+    if (code === lastScan.code && (now - lastScan.time) < 2200) return;
+    lastScan = { code, time: now };
+
+    if (!manifest.codes.includes(code)){
+      showTicket("miss", code, "This code isn't in the loaded manifest.");
+      pushRecent(code, "miss", "not in manifest");
+      beep(220, 0.25);
+      if (navigator.vibrate) navigator.vibrate(200);
+      return;
+    }
+    const s = status[code] || { done:false, ts:null };
+    if (s.done){
+      const t = s.ts ? new Date(s.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : "";
+      showTicket("dup", code, "Already marked complete" + (t ? " at " + t : "") + ".");
+      pushRecent(code, "dup", "already scanned");
+      beep(330, 0.18);
+      if (navigator.vibrate) navigator.vibrate([80,60,80]);
+      return;
+    }
+    status[code] = { done:true, ts:new Date().toISOString() };
+    render();
+    await saveStatusFor(code, status[code]);
+    showTicket("ok", code, "Box checked off the queue.");
+    pushRecent(code, "done", "marked complete");
+    beep(880, 0.14);
+    if (navigator.vibrate) navigator.vibrate(60);
+  }
+
+  $("manualBtn").addEventListener("click", () => {
+    const val = $("manualInput").value;
+    $("manualInput").value = "";
+    lastScan = { code:null, time:0 }; // manual entries always process
+    processScannedCode(val);
+  });
+  $("manualInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("manualBtn").click();
+  });
+
+  // ---------- scanner gun (keyboard-wedge HID) mode ----------
+  let scanMode = "camera";
+  let gunRefocusTimer = null;
+
+  function focusGunInput(){
+    if (scanMode === "gun" && $("view-scan").classList.contains("active")){
+      $("gunInput").focus({ preventScroll:true });
+    }
+  }
+
+  $("gunInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "Tab"){
+      e.preventDefault();
+      const val = $("gunInput").value;
+      $("gunInput").value = "";
+      lastScan = { code:null, time:0 }; // gun scans always process
+      processScannedCode(val);
+    }
+  });
+  $("gunInput").addEventListener("blur", () => {
+    if (gunRefocusTimer) clearTimeout(gunRefocusTimer);
+    gunRefocusTimer = setTimeout(focusGunInput, 300);
+  });
+
+  $("modeSeg").addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    scanMode = btn.dataset.mode;
+    [...$("modeSeg").children].forEach(b => b.classList.toggle("active", b === btn));
+    if (scanMode === "gun"){
+      if (scanning) await stopScanning();
+      $("cameraPanel").style.display = "none";
+      $("gunPanel").style.display = "block";
+      focusGunInput();
+    } else {
+      $("cameraPanel").style.display = "block";
+      $("gunPanel").style.display = "none";
+    }
+  });
+
+  // ---------- camera device list ----------
+  async function populateCameras(){
+    try{
+      const cams = await Html5Qrcode.getCameras();
+      const sel = $("cameraSelect");
+      sel.innerHTML = "";
+      if (!cams || !cams.length){
+        const opt = document.createElement("option");
+        opt.textContent = "No camera found";
+        sel.appendChild(opt);
+        return;
+      }
+      cams.forEach(cam => {
+        const opt = document.createElement("option");
+        opt.value = cam.id;
+        opt.textContent = cam.label || ("Camera " + cam.id.slice(0, 6));
+        sel.appendChild(opt);
+      });
+      if (selectedCameraId && cams.some(c => c.id === selectedCameraId)){
+        sel.value = selectedCameraId;
+      } else {
+        selectedCameraId = cams[0].id;
+      }
+    }catch(err){
+      console.error("Could not list cameras", err);
+    }
+  }
+
+  $("cameraSelect").addEventListener("change", (e) => {
+    selectedCameraId = e.target.value;
+    localStorage.setItem("scanner:cameraId", selectedCameraId);
+  });
+
+  $("autoStartChk").checked = autoStart;
+  $("autoStartChk").addEventListener("change", (e) => {
+    autoStart = e.target.checked;
+    localStorage.setItem("scanner:autoStart", autoStart ? "1" : "0");
+  });
+
+  $("keepAwakeChk").checked = keepAwake;
+  $("keepAwakeChk").addEventListener("change", (e) => {
+    keepAwake = e.target.checked;
+    localStorage.setItem("scanner:keepAwake", keepAwake ? "1" : "0");
+    if (keepAwake && scanning) acquireWakeLock(); else releaseWakeLock();
+  });
+
+  // ---------- keep screen awake while a mounted/kiosk camera runs ----------
+  async function acquireWakeLock(){
+    if (!keepAwake || !("wakeLock" in navigator)) return;
+    try{
+      wakeLockObj = await navigator.wakeLock.request("screen");
+    }catch(e){ console.error("Wake lock request failed", e); }
+  }
+  function releaseWakeLock(){
+    if (wakeLockObj){ wakeLockObj.release().catch(() => {}); wakeLockObj = null; }
+  }
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible" && scanning && keepAwake && !wakeLockObj){
+      await acquireWakeLock();
+    }
+  });
+
+  // ---------- camera scanning ----------
+  async function startScanning(){
+    if (scanning) return;
+    if (!manifest.codes.length){
+      $("scanHint").textContent = "Load a manifest on the Manifest tab first.";
+      return;
+    }
+    try{
+      html5Qrcode = new Html5Qrcode("reader", {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ],
+        verbose: false
+      });
+      const cameraArg = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : { facingMode: "environment" };
+      await html5Qrcode.start(
+        cameraArg,
+        { fps: 12 }, // no qrbox: scans the full frame, so boxes anywhere in view are caught
+        (decodedText) => { processScannedCode(decodedText); },
+        () => { /* per-frame decode miss, ignore */ }
+      );
+      scanning = true;
+      $("startScanBtn").style.display = "none";
+      $("stopScanBtn").style.display = "inline-flex";
+      $("scanHint").textContent = "Watching for barcodes…";
+      await acquireWakeLock();
+    }catch(err){
+      console.error(err);
+      $("scanHint").textContent = "Couldn't start the camera. Check camera permissions for this site.";
+    }
+  }
+
+  async function stopScanning(){
+    if (!scanning || !html5Qrcode) return;
+    try{ await html5Qrcode.stop(); html5Qrcode.clear(); }catch(e){ /* already stopped */ }
+    scanning = false;
+    $("startScanBtn").style.display = "inline-flex";
+    $("stopScanBtn").style.display = "none";
+    releaseWakeLock();
+  }
+
+  $("startScanBtn").addEventListener("click", startScanning);
+  $("stopScanBtn").addEventListener("click", stopScanning);
+
+  loadData();
+  populateCameras().then(() => {
+    if (autoStart){
+      document.querySelector('.tab[data-view="scan"]').click();
+      startScanning();
+    }
+  });
+})();
+</script>
+</body>
+</html>
