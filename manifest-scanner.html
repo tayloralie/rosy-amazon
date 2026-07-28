@@ -231,7 +231,7 @@
 
 <!-- MANIFEST VIEW -->
 <div class="view active" id="view-manifest">
-  <div class="panel">
+  <div class="panel" id="loadManifestPanel">
     <h2>Load Manifest</h2>
     <label class="btn btn-primary btn-block" for="pdfInput">Upload label PDF</label>
     <input type="file" id="pdfInput" accept="application/pdf">
@@ -535,6 +535,7 @@
     $("barFill").style.width = total ? ((done/total)*100) + "%" : "0%";
     $("fileMeta").textContent = manifest.fileName ? manifest.fileName : "No manifest loaded";
     $("pendingMeta").textContent = total ? pending + " pending" : "—";
+    $("loadManifestPanel").style.display = total ? "none" : "block";
 
     renderList();
   }
