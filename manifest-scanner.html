@@ -276,12 +276,12 @@
     <div class="panel" style="margin:0 0 12px;">
       <h2>Input method</h2>
       <div class="segmented" id="modeSeg">
-        <button data-mode="camera" class="active">Phone camera</button>
-        <button data-mode="gun">Scanner gun</button>
+        <button data-mode="camera">Phone camera</button>
+        <button data-mode="gun" class="active">Scanner gun</button>
       </div>
     </div>
 
-    <div class="panel" id="cameraPanel" style="margin:0 0 12px;">
+    <div class="panel" id="cameraPanel" style="display:none; margin:0 0 12px;">
       <h2>Scan a box</h2>
       <div class="row" style="margin-bottom:8px;">
         <select class="field" id="cameraSelect"></select>
@@ -307,7 +307,7 @@
       <div id="recentList"><div class="empty-note">No scans yet.</div></div>
     </div>
 
-    <div class="panel" id="gunPanel" style="display:none; margin:0 0 12px;">
+    <div class="panel" id="gunPanel" style="margin:0 0 12px;">
       <h2>Scanner gun</h2>
       <input class="field" id="gunInput" placeholder="Ready — scan a box…" autocomplete="off" inputmode="none">
       <div class="scan-hint">Pair your scanner gun as a Bluetooth or USB keyboard device. Leave this field focused — each scan submits itself automatically.</div>
@@ -732,7 +732,7 @@
   });
 
   // ---------- scanner gun (keyboard-wedge HID) mode ----------
-  let scanMode = "camera";
+  let scanMode = "gun";
   let gunRefocusTimer = null;
 
   function focusGunInput(){
