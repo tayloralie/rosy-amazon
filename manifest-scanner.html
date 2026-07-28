@@ -804,6 +804,13 @@
     localStorage.setItem("scanner:cameraId", selectedCameraId);
   });
 
+  // iOS Safari can occasionally ignore input from an external Bluetooth
+  // keyboard on a field marked inputmode="none" — safer to allow the
+  // on-screen keyboard there than risk silently losing scanner input.
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (isIOS) $("gunInput").removeAttribute("inputmode");
+
   $("autoStartChk").checked = autoStart;
   $("autoStartChk").addEventListener("change", (e) => {
     autoStart = e.target.checked;
