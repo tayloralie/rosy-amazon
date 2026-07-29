@@ -154,8 +154,8 @@
      Fill these in with your project's values (Supabase dashboard → Settings → API).
      The anon/public key is safe to embed in client code — access is controlled by
      Row Level Security policies on the tables, not by keeping this key secret. */
-  var SUPABASE_URL = "YOUR_SUPABASE_URL";
-  var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+  var SUPABASE_URL = "https://ufipqwxmkhyojvrfijfw.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmaXBxd3hta2h5b2p2cmZpamZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTE5NTIsImV4cCI6MjEwMDMyNzk1Mn0.2kJcSZBrrr0HegVkMzfOzAWINE1adtQC_LG53G5LpEg";
   var sb = (window.supabase && SUPABASE_URL.indexOf("YOUR_SUPABASE_URL") !== 0 && SUPABASE_ANON_KEY.indexOf("YOUR_SUPABASE_ANON_KEY") !== 0)
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
