@@ -179,7 +179,7 @@
     fleetQ: "", fleetFilter: "All", fleetType: "",
     custQ: "",
     rentalView: "active", rentalQ: "",
-    billMonth: nowMonth(), billLedgerStatus: "all",
+    billMonth: nowMonth(),
     collQ: "", collStageFilter: "open"
   };
 
@@ -194,6 +194,11 @@
   function prevMonthKey(ym) {
     var p = ym.split("-"); var y = Number(p[0]), m = Number(p[1]) - 1;
     if (m < 1) { m = 12; y -= 1; }
+    return y + "-" + String(m).padStart(2, "0");
+  }
+  function nextMonthKey(ym) {
+    var p = ym.split("-"); var y = Number(p[0]), m = Number(p[1]) + 1;
+    if (m > 12) { m = 1; y += 1; }
     return y + "-" + String(m).padStart(2, "0");
   }
   function money(n, dp) {
@@ -444,7 +449,7 @@
     }).filter(function (x) { return x.n; });
     var collTotal = 0;
     state.collections.forEach(function (c) { collTotal += Number(c.balance) || 0; });
-    var pendingRecurring = state.rentals.filter(function (r) { return needsRecurringFlag(r, nowMonth()); }).length;
+    var pendingRecurring = state.rentals.filter(function (r) { return needsRecurringActionable(r, nowMonth()); }).length;
     return {
       total: total, rented: rented, available: available, maint: maint, mrr: mrr,
       outstanding: outstanding, overdue: overdue, overdueAmt: overdueAmt,
@@ -453,11 +458,16 @@
     };
   }
 
-  function needsRecurringFlag(r, refYm) {
+  function needsRecurringActionable(r, refYm) {
     if (r.endDate || r.addedToRecurring) return false;
     var isPrevMonth = monthKey(r.startDate) === prevMonthKey(refYm);
     var isStale = monthsElapsedCalendar(r.startDate, refYm) >= RECURRING_STALE_MONTHS;
     return isPrevMonth || isStale;
+  }
+  function needsRecurringVisible(r, refYm) {
+    if (r.endDate) return false;
+    if (r.addedToRecurring) return r.recurringSetMonth === refYm;
+    return needsRecurringActionable(r, refYm);
   }
 
   /* ------------------------- real data loader ------------------------- */
@@ -915,10 +925,17 @@
     commit();
   }
 
-  function toggleAddedToRecurring(id) {
-    state.rentals = state.rentals.map(function (r) { return r.id === id ? Object.assign({}, r, { addedToRecurring: !r.addedToRecurring }) : r; });
-    persist();
-    render();
+  function toggleAddedToRecurring(id, refYm) {
+    var r = rentalById(id);
+    if (!r) return;
+    if (r.addedToRecurring) {
+      state.rentals = state.rentals.map(function (x) { return x.id === id ? Object.assign({}, x, { addedToRecurring: false, recurringSetMonth: null }) : x; });
+      flash("Unmarked — back in the queue");
+    } else {
+      state.rentals = state.rentals.map(function (x) { return x.id === id ? Object.assign({}, x, { addedToRecurring: true, recurringSetMonth: refYm }) : x; });
+      flash("Marked added to recurring — starts billing " + monthLabel(nextMonthKey(refYm)));
+    }
+    commit();
   }
 
   /* ---------------------------- billing ---------------------------- */
@@ -933,7 +950,8 @@
 
   // Stage 1: new rentals this month (by delivery/start date)
   function newRentalsForMonth(ym) {
-    return state.rentals.filter(function (r) { return monthKey(r.startDate) === ym; });
+    return state.rentals.filter(function (r) { return monthKey(r.startDate) === ym; })
+      .sort(function (a, b) { return a.startDate.localeCompare(b.startDate); });
   }
   function generateNewRentalInvoice(rentalId) {
     var r = rentalById(rentalId);
@@ -983,74 +1001,69 @@
     }
   }
   function returnsForMonth(ym) {
-    return state.rentals.filter(function (r) { return r.endDate && monthKey(r.endDate) === ym; });
+    return state.rentals.filter(function (r) { return r.endDate && monthKey(r.endDate) === ym; })
+      .sort(function (a, b) { return a.endDate.localeCompare(b.endDate); });
   }
-  function generateReturnInvoices(rentalId) {
+  function toggleReturnBilled(rentalId) {
     var r = rentalById(rentalId);
-    if (!r || !r.endDate) return;
-    if (invoiceExists(rentalId, "credit", null)) return flash("Return already processed for this rental");
-    var credit = returnProrateCredit(r.monthlyRate, r.endDate);
-    var meta = invoiceMeta(r);
-    var ym = monthKey(r.endDate);
-    state.invoices.push({
-      id: uid(), number: nextInvoiceNumber(), kind: "credit", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
-      accountNumber: meta.accountNumber, poNumber: meta.poNumber, rentalNumber: meta.rentalNumber,
-      periodMonth: ym, baseRate: r.monthlyRate, amount: -credit, issueDate: today(), dueDate: today(), status: "applied", paidDate: null
-    });
-    if (Number(r.serviceFee) > 0) {
-      state.invoices.push({
-        id: uid(), number: nextInvoiceNumber(), kind: "pickup", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
-        accountNumber: meta.accountNumber, poNumber: meta.poNumber, rentalNumber: meta.rentalNumber,
-        periodMonth: ym, amount: Number(r.serviceFee), issueDate: today(), dueDate: today(), status: "unpaid", paidDate: null
-      });
-    }
-    flash("Recorded return credit (" + money(credit) + ") and pickup invoice for " + customerName(r.customerId));
-    commit();
-  }
-  function generateAllReturnInvoices(ym) {
-    var list = returnsForMonth(ym).filter(function (r) { return !invoiceExists(r.id, "credit", null); });
-    if (!list.length) return flash("Nothing to process for returns in " + monthLabel(ym));
-    list.forEach(function (r) { generateReturnInvoicesQuiet(r); });
-    flash("Processed " + list.length + " return(s) for " + monthLabel(ym));
-    commit();
-  }
-  function generateReturnInvoicesQuiet(r) {
-    var credit = returnProrateCredit(r.monthlyRate, r.endDate);
-    var meta = invoiceMeta(r);
-    var ym = monthKey(r.endDate);
-    state.invoices.push({
-      id: uid(), number: nextInvoiceNumber(), kind: "credit", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
-      accountNumber: meta.accountNumber, poNumber: meta.poNumber, rentalNumber: meta.rentalNumber,
-      periodMonth: ym, baseRate: r.monthlyRate, amount: -credit, issueDate: today(), dueDate: today(), status: "applied", paidDate: null
-    });
-    if (Number(r.serviceFee) > 0) {
-      state.invoices.push({
-        id: uid(), number: nextInvoiceNumber(), kind: "pickup", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
-        accountNumber: meta.accountNumber, poNumber: meta.poNumber, rentalNumber: meta.rentalNumber,
-        periodMonth: ym, amount: Number(r.serviceFee), issueDate: today(), dueDate: today(), status: "unpaid", paidDate: null
-      });
-    }
-  }
-
-  function toggleReturnInvoices(rentalId) {
-    var existing = state.invoices.filter(function (i) { return i.rentalId === rentalId && (i.kind === "credit" || i.kind === "pickup"); });
-    if (existing.length) {
-      var anyPaid = existing.some(function (i) { return i.status === "paid"; });
-      if (anyPaid) return flash("The pickup invoice is marked paid — unmark it first, then you can undo the return.");
-      var ids = existing.map(function (i) { return i.id; });
-      state.invoices = state.invoices.filter(function (i) { return ids.indexOf(i.id) === -1; });
-      var r0 = rentalById(rentalId);
-      flash("Undid the return credit/pickup" + (r0 ? " for " + customerName(r0.customerId) : ""));
-      commit();
+    if (!r) return;
+    var existing = state.invoices.find(function (i) { return i.rentalId === rentalId && i.kind === "pickup"; });
+    if (existing) {
+      if (existing.status === "paid") return flash("That invoice is marked paid — unmark it first, then you can undo it.");
+      state.invoices = state.invoices.filter(function (i) { return i.id !== existing.id; });
+      flash("Unmarked billed for " + customerName(r.customerId));
     } else {
-      generateReturnInvoices(rentalId);
+      var meta = invoiceMeta(r);
+      var ym = monthKey(r.endDate);
+      state.invoices.push({
+        id: uid(), number: nextInvoiceNumber(), kind: "pickup", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
+        accountNumber: meta.accountNumber, poNumber: meta.poNumber, rentalNumber: meta.rentalNumber,
+        periodMonth: ym, amount: Number(r.serviceFee) || 0, issueDate: today(), dueDate: today(), status: "unpaid", paidDate: null
+      });
+      flash("Marked billed for " + customerName(r.customerId));
     }
+    commit();
   }
 
-  // Stage 4: recurring roster — flat monthly invoice for rentals already flagged addedToRecurring
-  function recurringRoster() { return state.rentals.filter(function (r) { return !r.endDate && r.addedToRecurring; }); }
+  function toggleReturnCredit(rentalId) {
+    var r = rentalById(rentalId);
+    if (!r) return;
+    var existing = state.invoices.find(function (i) { return i.rentalId === rentalId && i.kind === "credit"; });
+    if (existing) {
+      state.invoices = state.invoices.filter(function (i) { return i.id !== existing.id; });
+      flash("Undid the issued credit for " + customerName(r.customerId));
+    } else {
+      var credit = returnProrateCredit(r.monthlyRate, r.endDate);
+      var meta = invoiceMeta(r);
+      var ym = monthKey(r.endDate);
+      state.invoices.push({
+        id: uid(), number: nextInvoiceNumber(), kind: "credit", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
+        accountNumber: meta.accountNumber, poNumber: meta.poNumber, rentalNumber: meta.rentalNumber,
+        periodMonth: ym, baseRate: r.monthlyRate, amount: -credit, issueDate: today(), dueDate: today(), status: "applied", paidDate: null
+      });
+      flash("Issued credit (" + money(credit) + ") for " + customerName(r.customerId));
+    }
+    commit();
+  }
+
+  function toggleReturnRemoved(rentalId) {
+    var r = rentalById(rentalId);
+    if (!r) return;
+    var willRemove = !!r.addedToRecurring;
+    state.rentals = state.rentals.map(function (x) { return x.id === rentalId ? Object.assign({}, x, { addedToRecurring: !x.addedToRecurring }) : x; });
+    flash((willRemove ? "Marked removed from recurring for " : "Restored to recurring for ") + customerName(r.customerId));
+    commit();
+  }
+
+  // Stage 4: recurring roster — flat monthly invoice for rentals flagged addedToRecurring,
+  // but a rental marked this month doesn't bill via the roster until the following month.
+  function recurringRoster(ym) {
+    return state.rentals.filter(function (r) {
+      return !r.endDate && r.addedToRecurring && (!r.recurringSetMonth || r.recurringSetMonth < ym);
+    });
+  }
   function generateRecurringForMonth(ym) {
-    var list = recurringRoster().filter(function (r) { return monthKey(r.startDate) <= ym; });
+    var list = recurringRoster(ym).filter(function (r) { return monthKey(r.startDate) <= ym; });
     var created = 0;
     list.forEach(function (r) {
       if (invoiceExists(r.id, "recurring", ym)) return;
@@ -1091,26 +1104,13 @@
     }
   }
 
-  function billingTogglePaid(id) {
-    state.invoices = state.invoices.map(function (i) {
-      if (i.id !== id) return i;
-      var paid = i.status === "paid";
-      return Object.assign({}, i, { status: paid ? "unpaid" : "paid", paidDate: paid ? null : today() });
-    });
-    commit();
-  }
-
-  function kindLabel(k) {
-    return { initial: "First invoice", credit: "Return credit", pickup: "Pickup fee", recurring: "Recurring" }[k] || k;
-  }
-
   function renderBilling(v) {
     var ym = ui.billMonth;
     var newList = newRentalsForMonth(ym);
     var retList = returnsForMonth(ym);
-    var pendingList = state.rentals.filter(function (r) { return needsRecurringFlag(r, ym); })
+    var pendingList = state.rentals.filter(function (r) { return needsRecurringVisible(r, ym); })
       .sort(function (a, b) { return a.startDate.localeCompare(b.startDate); });
-    var roster = recurringRoster();
+    var roster = recurringRoster(ym);
 
     /* Stage 1: new rentals */
     var newRows = newList.map(function (r) {
@@ -1119,7 +1119,7 @@
       var total = round2((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
       var actionBtn = existingInv
         ? '<button class="btn sm ' + (existingInv.status === "paid" ? "ghost" : "danger") + '" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">' + (existingInv.status === "paid" ? "Paid — locked" : "Undo") + "</button>"
-        : '<button class="btn sm primary" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">Generate</button>';
+        : '<button class="btn sm primary" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">Done</button>';
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
         "<td>" + esc(customerName(r.customerId)) + "</td>" +
@@ -1132,34 +1132,39 @@
     }).join("");
     if (!newList.length) newRows = '<tr><td colspan="8" class="empty-row">No new rentals delivered in ' + monthLabel(ym) + ".</td></tr>";
 
-    /* Stage 2: returns */
+    /* Stage 2: returns — three independent checklist actions */
     var retRows = retList.map(function (r) {
-      var existingInvs = state.invoices.filter(function (i) { return i.rentalId === r.id && (i.kind === "credit" || i.kind === "pickup"); });
-      var anyPaid = existingInvs.some(function (i) { return i.status === "paid"; });
+      var pickupInv = state.invoices.find(function (i) { return i.rentalId === r.id && i.kind === "pickup"; });
+      var creditInv = state.invoices.find(function (i) { return i.rentalId === r.id && i.kind === "credit"; });
       var credit = returnProrateCredit(r.monthlyRate, r.endDate);
-      var actionBtn = existingInvs.length
-        ? '<button class="btn sm ' + (anyPaid ? "ghost" : "danger") + '" data-act="bill-return-toggle" data-id="' + esc(r.id) + '">' + (anyPaid ? "Paid — locked" : "Undo") + "</button>"
-        : '<button class="btn sm primary" data-act="bill-return-toggle" data-id="' + esc(r.id) + '">Generate</button>';
+      var billedLocked = pickupInv && pickupInv.status === "paid";
+      var billedBtn = '<button class="btn sm ' + (billedLocked ? "ghost" : (pickupInv ? "primary" : "ghost")) + '" data-act="bill-return-billed" data-id="' + esc(r.id) + '">' + (billedLocked ? "Billed — locked" : "Billed") + "</button>";
+      var creditBtn = '<button class="btn sm ' + (creditInv ? "primary" : "ghost") + '" data-act="bill-return-credit" data-id="' + esc(r.id) + '">Issued Credit</button>';
+      var removedBtn = '<button class="btn sm ' + (!r.addedToRecurring ? "primary" : "ghost") + '" data-act="bill-return-removed" data-id="' + esc(r.id) + '">Removed from Recurring</button>';
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
         "<td>" + esc(customerName(r.customerId)) + "</td>" +
         '<td class="num">' + r.endDate + "</td>" +
         '<td class="num" style="color:var(--credit)">-' + money(credit) + "</td>" +
         '<td class="num">' + money(r.serviceFee || 0, 0) + "</td>" +
-        "<td>" + actionBtn + "</td></tr>";
+        '<td class="right nowrap">' + billedBtn + " " + creditBtn + " " + removedBtn + "</td></tr>";
     }).join("");
     if (!retList.length) retRows = '<tr><td colspan="6" class="empty-row">No returns recorded in ' + monthLabel(ym) + ".</td></tr>";
 
-    /* Stage 3: needs recurring */
+    /* Stage 3: needs recurring — stays visible after marking, for confirmation this month */
     var pendingRows = pendingList.map(function (r) {
       var elapsed = monthsElapsedCalendar(r.startDate, today());
+      var done = r.addedToRecurring;
+      var actionBtn = done
+        ? '<button class="btn sm ghost" data-act="bill-mark-recurring" data-id="' + esc(r.id) + '">Done — undo</button>'
+        : '<button class="btn sm primary" data-act="bill-mark-recurring" data-id="' + esc(r.id) + '">Mark added to recurring</button>';
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
         "<td>" + esc(customerName(r.customerId)) + "</td>" +
         '<td class="num">' + r.startDate + "</td>" +
         '<td class="num">' + elapsed + " mo</td>" +
         '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
-        '<td class="right"><button class="btn sm primary" data-act="bill-mark-recurring" data-id="' + esc(r.id) + '">Mark added to recurring</button></td></tr>';
+        '<td class="right">' + actionBtn + "</td></tr>";
     }).join("");
     if (!pendingList.length) pendingRows = '<tr><td colspan="5" class="empty-row">Nothing waiting — everything eligible is already on the recurring system.</td></tr>';
 
@@ -1177,75 +1182,26 @@
     }).join("");
     if (!roster.length) rosterRows = '<tr><td colspan="4" class="empty-row">No rentals are flagged as on-recurring yet.</td></tr>';
 
-    /* Ledger */
-    var months = {};
-    state.invoices.forEach(function (i) { months[i.periodMonth] = 1; });
-    var ledger = state.invoices.filter(function (i) {
-      if (ui.billLedgerStatus === "all") return true;
-      if (ui.billLedgerStatus === "overdue") return isOverdue(i);
-      if (ui.billLedgerStatus === "paid") return i.status === "paid";
-      if (ui.billLedgerStatus === "unpaid") return i.status === "unpaid" && !isOverdue(i);
-      if (ui.billLedgerStatus === "credit") return i.status === "applied";
-      return true;
-    }).sort(function (a, b) { return b.issueDate.localeCompare(a.issueDate) || b.number.localeCompare(a.number); });
-
-    var ledgerRows = ledger.slice(0, 200).map(function (i) {
-      var refs = [];
-      if (i.accountNumber) refs.push("Acct " + i.accountNumber);
-      if (i.poNumber) refs.push("PO " + i.poNumber);
-      if (i.rentalNumber) refs.push("Rental " + i.rentalNumber);
-      var statusBadge = i.status === "applied" ? badge("Credit") : (i.status === "paid" ? badge("Paid") : badge("Unpaid", isOverdue(i)));
-      var amtColor = i.amount < 0 ? "var(--credit)" : "var(--ink)";
-      return "<tr>" +
-        '<td class="cid">' + esc(i.number) + (refs.length ? '<div class="subline mono">' + esc(refs.join(" · ")) + "</div>" : "") + "</td>" +
-        "<td>" + esc(customerName(i.customerId)) + "</td>" +
-        '<td class="cid">' + esc(containerLabel(i.containerId)) + "</td>" +
-        "<td>" + kindLabel(i.kind) + "</td>" +
-        '<td class="num">' + monthLabel(i.periodMonth) + "</td>" +
-        '<td class="num money" style="color:' + amtColor + '">' + money(i.amount) + "</td>" +
-        "<td>" + statusBadge + "</td>" +
-        '<td class="right">' + (i.status === "applied" ? "" :
-          '<button class="btn sm ' + (i.status === "paid" ? "ghost" : "primary") + '" data-act="bill-toggle" data-id="' + esc(i.id) + '">' + (i.status === "paid" ? "Unmark" : "Mark paid") + "</button>") + "</td></tr>";
-    }).join("");
-    if (!ledger.length) ledgerRows = '<tr><td colspan="8" class="empty-row">No invoices generated yet.</td></tr>';
-
-    var monthOptions = Object.keys(months).concat([ym]).filter(function (v2, idx, arr) { return arr.indexOf(v2) === idx; })
-      .sort().reverse().map(function (m) {
-        return '<option value="' + m + '"' + (m === ym ? " selected" : "") + ">" + monthLabel(m) + "</option>";
-      }).join("");
-
     v.innerHTML =
       '<div class="pagehead"><div><h2>Billing</h2><div class="sub">The same four steps as your monthly close — new rentals, returns, recurring setup, and the standing roster</div></div>' +
       '<div class="fld" style="min-width:180px"><label>Closing month</label><input class="in" id="bill-month" type="month" value="' + ym + '"></div></div>' +
 
       '<div class="panel"><div class="panel-head"><div><h3><span class="stage-badge">1</span>&nbsp; New rentals — ' + monthLabel(ym) + '</h3><p class="panel-sub">First invoice = service fee + full month + proration to the next calendar boundary.</p></div>' +
-      (newList.some(function(r){return !invoiceExists(r.id,"initial",null);}) ? '<button class="btn primary sm" data-act="bill-new-all">Generate all</button>' : "") + "</div>" +
+      (newList.some(function(r){return !invoiceExists(r.id,"initial",null);}) ? '<button class="btn primary sm" data-act="bill-new-all">Mark all done</button>' : "") + "</div>" +
       '<div class="formula" style="margin-bottom:10px">proration = (monthly rate ÷ days in ' + monthLabel(ym) + ') × (days in month − delivery day)</div>' +
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Delivered</th><th>Service fee</th><th>Month</th><th>Proration</th><th>Total</th><th></th></tr></thead><tbody>' + newRows + "</tbody></table></div></div>" +
 
-      '<div class="panel"><div class="panel-head"><div><h3><span class="stage-badge">2</span>&nbsp; Returns — ' + monthLabel(ym) + '</h3><p class="panel-sub">Credits back the unused prorated days already auto-billed, then invoices the pickup fee separately.</p></div>' +
-      (retList.some(function(r){return !invoiceExists(r.id,"credit",null);}) ? '<button class="btn primary sm" data-act="bill-return-all">Generate all</button>' : "") + "</div>" +
+      '<div class="panel"><h3><span class="stage-badge">2</span>&nbsp; Returns — ' + monthLabel(ym) + '</h3><p class="panel-sub">Three independent steps per return — click to mark each done, click again to undo.</p>' +
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Returned</th><th>Credit</th><th>Pickup fee</th><th></th></tr></thead><tbody>' + retRows + "</tbody></table></div></div>" +
 
       '<div class="panel"><h3><span class="stage-badge">3</span>&nbsp; Needs to be added to recurring</h3>' +
-      '<p class="panel-sub">Rentals delivered in ' + monthLabel(prevMonthKey(ym)) + ' that haven\'t been returned, plus anything older still not flagged — nothing unflagged falls through the cracks. Not flagged as on the accounting system\'s auto-bill yet.</p>' +
+      '<p class="panel-sub">Rentals delivered in ' + monthLabel(prevMonthKey(ym)) + ' that haven\'t been returned, plus anything older still not flagged. Once marked, it stays here for confirmation but won\'t bill on the recurring roster until ' + monthLabel(nextMonthKey(ym)) + '.</p>' +
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Delivered</th><th>Age</th><th>Rate/mo</th><th></th></tr></thead><tbody>' + pendingRows + "</tbody></table></div></div>" +
 
       '<div class="panel"><div class="panel-head"><div><h3><span class="stage-badge">4</span>&nbsp; Recurring roster</h3><p class="panel-sub">' + roster.length + ' rentals on the accounting system\'s auto-bill. Generates a flat monthly invoice per unit for ' + monthLabel(ym) + '.</p></div>' +
       '<button class="btn primary sm" data-act="bill-recurring-generate">Generate recurring invoices</button></div>' +
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Rate/mo</th><th></th></tr></thead><tbody>' + rosterRows + "</tbody></table></div>" +
-      (roster.length > 12 ? '<div class="count" style="margin-top:8px">Showing 12 of ' + roster.length + "</div>" : "") + "</div>" +
-
-      '<div class="panel"><h3>Invoice ledger</h3><p class="panel-sub">Everything generated above, in one list — this is what gets keyed into your accounting software.</p>' +
-      '<div class="chips" style="margin-bottom:12px">' +
-      ["all", "unpaid", "overdue", "paid", "credit"].map(function (s) {
-        return '<button class="chip ' + (ui.billLedgerStatus === s ? "on" : "") + '" data-act="bill-ledger-status" data-status="' + s + '">' + s.charAt(0).toUpperCase() + s.slice(1) + "</button>";
-      }).join("") + "</div>" +
-      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Invoice</th><th>Customer</th><th>Container</th><th>Type</th><th>Period</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>' + ledgerRows + "</tbody></table></div>" +
-      (ledger.length > 200 ? '<div class="count" style="margin-top:8px">Showing 200 of ' + ledger.length + "</div>" : "") + "</div>";
-
-    var mSel = el("bill-month");
-    if (mSel && monthOptions.indexOf('value="' + ym + '"') === -1) { /* no-op, native input type=month used instead */ }
+      (roster.length > 12 ? '<div class="count" style="margin-top:8px">Showing 12 of ' + roster.length + "</div>" : "") + "</div>";
   }
 
   /* --------------------------- collections --------------------------- */
@@ -1364,13 +1320,12 @@
     "rental-view": function (t) { ui.rentalView = t.getAttribute("data-view"); render(); },
     "bill-new-toggle": function (t) { toggleNewRentalInvoice(t.getAttribute("data-id")); },
     "bill-new-all": function () { generateAllNewRentalInvoices(ui.billMonth); },
-    "bill-return-toggle": function (t) { toggleReturnInvoices(t.getAttribute("data-id")); },
-    "bill-return-all": function () { generateAllReturnInvoices(ui.billMonth); },
-    "bill-mark-recurring": function (t) { toggleAddedToRecurring(t.getAttribute("data-id")); flash("Marked as added to recurring"); },
+    "bill-return-billed": function (t) { toggleReturnBilled(t.getAttribute("data-id")); },
+    "bill-return-credit": function (t) { toggleReturnCredit(t.getAttribute("data-id")); },
+    "bill-return-removed": function (t) { toggleReturnRemoved(t.getAttribute("data-id")); },
+    "bill-mark-recurring": function (t) { toggleAddedToRecurring(t.getAttribute("data-id"), ui.billMonth); },
     "bill-recurring-toggle": function (t) { toggleRecurringInvoice(t.getAttribute("data-id"), ui.billMonth); },
     "bill-recurring-generate": function () { generateRecurringForMonth(ui.billMonth); },
-    "bill-toggle": function (t) { billingTogglePaid(t.getAttribute("data-id")); },
-    "bill-ledger-status": function (t) { ui.billLedgerStatus = t.getAttribute("data-status"); render(); },
     "coll-filter": function (t) { ui.collStageFilter = t.getAttribute("data-filter"); render(); },
     "coll-notes": function (t) { collectionNotesModal(t.getAttribute("data-id")); },
     "coll-note-add": function (t) {
