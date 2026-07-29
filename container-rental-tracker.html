@@ -678,13 +678,16 @@
     var statusField = onRent
       ? '<div class="muted" style="font-size:12.5px">On rent to ' + esc(customerName(onRent.customerId)) + ' — status stays “Rented” until the rental is ended.</div>'
       : '<div class="fld"><label>Status</label><select class="in" id="f-status">' + opt(MANUAL_STATUSES, f.status) + "</select></div>";
+    var rentalField = onRent
+      ? '<div class="fld"><label>Rental #</label><input class="in mono" id="f-rentalnum" value="' + esc(onRent.rentalNumber || "") + '"></div>'
+      : "";
     openModal(editing ? "Edit container" : "Add container",
       '<div class="fld"><label>Container ID</label><input class="in mono" id="f-id" placeholder="REXU 1234567" value="' + esc(f.id) + '"></div>' +
       (onRent ? '<div class="muted" style="font-size:12px">Renaming the ID here will automatically update its active rental and invoice history to match.</div>' : "") +
       '<div class="row2"><div class="fld"><label>Type</label><select class="in" id="f-type">' + opt(TYPES, f.type) + "</select></div>" +
       '<div class="fld"><label>Grade</label><select class="in" id="f-grade">' + opt(GRADES, f.grade) + "</select></div></div>" +
       '<div class="fld"><label>Location / ship-to</label><input class="in" id="f-loc" placeholder="Yard A — Eugene" value="' + esc(f.location) + '"></div>' +
-      statusField +
+      statusField + rentalField +
       '<div class="fld"><label>Notes</label><textarea class="in" id="f-notes" rows="2">' + esc(f.notes || "") + "</textarea></div>",
       '<button class="btn" data-act="modal-close">Cancel</button>' +
       '<button class="btn primary" data-act="fleet-save" data-id="' + esc(editing ? editing.id : "") + '">' + (editing ? "Save changes" : "Add container") + "</button>");
@@ -707,6 +710,13 @@
     if (renamed) {
       state.rentals = state.rentals.map(function (r) { return r.containerId === origId ? Object.assign({}, r, { containerId: id }) : r; });
       state.invoices = state.invoices.map(function (i) { return i.containerId === origId ? Object.assign({}, i, { containerId: id }) : i; });
+    }
+    if (el("f-rentalnum")) {
+      var activeR = activeRentalOf(id);
+      if (activeR) {
+        var newRentalNum = el("f-rentalnum").value.trim();
+        state.rentals = state.rentals.map(function (r) { return r.id === activeR.id ? Object.assign({}, r, { rentalNumber: newRentalNum }) : r; });
+      }
     }
     closeModal();
     flash(origId ? (renamed ? "Container updated and renamed everywhere it's referenced" : "Container updated") : "Container added");
