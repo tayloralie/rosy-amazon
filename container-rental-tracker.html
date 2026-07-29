@@ -20,6 +20,7 @@
   .mono { font-family:var(--mono); }
 
   header.top { background:var(--primary); color:#fff; border-top:4px solid var(--stripe); padding:14px 20px 0; }
+  .top-row { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
   .brand { display:flex; align-items:center; gap:12px; }
   .logo { width:40px; height:34px; border-radius:6px; background:var(--stripe); display:flex; align-items:center; justify-content:center; color:var(--primary); font-weight:800; font-family:var(--mono); font-size:12px; letter-spacing:-0.5px; }
   .brand h1 { font-size:17px; margin:0; letter-spacing:.2px; font-weight:650; }
@@ -113,19 +114,28 @@
   .listrow { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
   .bar { height:8px; background:var(--surface-2); border-radius:20px; overflow:hidden; margin-top:8px; }
   .bar > span { display:block; height:100%; background:var(--primary); }
-  .savenote { font-size:11.5px; color:#b7d2c1; margin-top:6px; }
+  .savenote { font-size:11.5px; color:#b7d2c1; white-space:nowrap; }
   .banner { background:var(--warn-bg); color:var(--warn); border:1px solid #e9d6a3; border-radius:8px; padding:10px 14px; font-size:12.5px; margin-bottom:16px; }
   .formula { background:var(--surface-2); border:1px dashed var(--line); border-radius:8px; padding:8px 11px; font-size:12px; color:var(--muted); font-family:var(--mono); }
+  .combo-wrap { position:relative; }
+  .combo-list { position:absolute; z-index:60; background:#fff; border:1px solid var(--line); border-radius:8px; margin-top:4px; max-height:220px; overflow-y:auto; width:100%; box-shadow:0 8px 20px rgba(0,0,0,.15); display:none; }
+  .combo-item { padding:8px 11px; cursor:pointer; font-size:13px; }
+  .combo-item:hover { background:var(--surface-2); }
+  .combo-empty { padding:8px 11px; color:var(--muted); font-size:12.5px; }
+  .quickadd { margin-top:8px; padding:10px; border:1px dashed var(--line); border-radius:8px; display:grid; gap:8px; }
 </style>
 </head>
 <body>
   <header class="top">
-    <div class="brand">
-      <div class="logo">WMS</div>
-      <div>
-        <h1>Western Mobile Storage</h1>
-        <p>Rental &amp; Billing Tracker · Oregon's Trusted Source</p>
+    <div class="top-row">
+      <div class="brand">
+        <div class="logo">WMS</div>
+        <div>
+          <h1>Western Mobile Storage</h1>
+          <p>Rental &amp; Billing Tracker · Oregon's Trusted Source</p>
+        </div>
       </div>
+      <div class="savenote" id="savenote"></div>
     </div>
     <nav class="tabs" id="tabs">
       <button data-act="tab" data-tab="dashboard">Dashboard</button>
@@ -135,7 +145,6 @@
       <button data-act="tab" data-tab="billing">Billing</button>
       <button data-act="tab" data-tab="collections">Collections</button>
     </nav>
-    <div class="savenote" id="savenote"></div>
   </header>
   <main id="view"></main>
   <footer style="max-width:1260px;margin:0 auto;padding:0 20px 32px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:16px">
@@ -869,17 +878,29 @@
   }
 
   function rentalStartModal() {
-    var avail = state.containers.filter(function (c) { return effStatus(c) === "Available"; });
-    var contOpts = '<option value="">Select a container…</option>' + avail.map(function (c) {
-      return '<option value="' + esc(c.id) + '">' + esc(c.id) + " · " + esc(c.type) + "</option>";
-    }).join("");
-    var custOpts = '<option value="">Select a customer…</option>' + state.customers.map(function (c) {
-      return '<option value="' + esc(c.id) + '">' + esc(c.name) + (c.accountNumber ? " (" + esc(c.accountNumber) + ")" : "") + "</option>";
-    }).join("");
     openModal("Start a rental",
-      '<div class="fld"><label>Container (' + avail.length + ' available)</label><select class="in mono" id="r-cont">' + contOpts + "</select></div>" +
-      (avail.length === 0 ? '<div class="muted" style="font-size:12.5px">No available containers — everything is on rent or out of service.</div>' : "") +
-      '<div class="fld"><label>Customer</label><select class="in" id="r-cust">' + custOpts + "</select></div>" +
+      '<div class="fld"><label>Container</label>' +
+      '<div class="combo-wrap"><input class="in mono" id="r-cont-search" autocomplete="off" placeholder="Search container ID, type, or location…">' +
+      '<input type="hidden" id="r-cont"><div class="combo-list" id="r-cont-list"></div></div>' +
+      '<button type="button" class="btn sm ghost" style="margin-top:6px" data-act="rental-newcont-toggle">+ Add new container</button>' +
+      '<div class="quickadd" id="r-newcont" style="display:none">' +
+      '<input class="in mono" id="r-newcont-id" placeholder="Container ID">' +
+      '<select class="in" id="r-newcont-type">' + opt(TYPES, TYPES[0]) + "</select>" +
+      '<input class="in" id="r-newcont-location" placeholder="Location (optional)">' +
+      '<button type="button" class="btn sm primary" data-act="rental-newcont-create">Create &amp; select</button>' +
+      "</div></div>" +
+
+      '<div class="fld"><label>Customer</label>' +
+      '<div class="combo-wrap"><input class="in" id="r-cust-search" autocomplete="off" placeholder="Search customer name or account #…">' +
+      '<input type="hidden" id="r-cust"><div class="combo-list" id="r-cust-list"></div></div>' +
+      '<button type="button" class="btn sm ghost" style="margin-top:6px" data-act="rental-newcust-toggle">+ Add new customer</button>' +
+      '<div class="quickadd" id="r-newcust" style="display:none">' +
+      '<input class="in" id="r-newcust-name" placeholder="Business / customer name">' +
+      '<input class="in mono" id="r-newcust-account" placeholder="Account # (optional)">' +
+      '<input class="in" id="r-newcust-phone" placeholder="Phone (optional)">' +
+      '<button type="button" class="btn sm primary" data-act="rental-newcust-create">Create &amp; select</button>' +
+      "</div></div>" +
+
       '<div class="row2"><div class="fld"><label>Monthly rate ($)</label><input class="in mono" id="r-rate" type="number" min="0"></div>' +
       '<div class="fld"><label>Service fee ($)</label><input class="in mono" id="r-fee" type="number" min="0" placeholder="0"></div></div>' +
       '<div class="row2"><div class="fld"><label>PO number (optional)</label><input class="in" id="r-po"></div>' +
@@ -888,6 +909,67 @@
       '<div class="muted" style="font-size:12px">Service fee is charged once on delivery and again on pickup. This new rental will show up in Billing → "New this month" so you can generate its first prorated invoice.</div>',
       '<button class="btn" data-act="modal-close">Cancel</button>' +
       '<button class="btn primary" data-act="rental-create">Start rental</button>');
+  }
+
+  function comboContainerItems(term) {
+    var avail = state.containers.filter(function (c) { return effStatus(c) === "Available"; });
+    var t = term.trim().toLowerCase();
+    return avail.filter(function (c) {
+      if (!t) return true;
+      return (c.id + " " + c.type + " " + (c.location || "")).toLowerCase().indexOf(t) !== -1;
+    }).slice(0, 30);
+  }
+  function renderContainerCombo(term) {
+    var matches = comboContainerItems(term || "");
+    var html = matches.map(function (c) {
+      return '<div class="combo-item" data-act="rental-cont-pick" data-id="' + esc(c.id) + '">' + esc(c.id) + " · " + esc(c.type) + (c.location ? " — " + esc(c.location) : "") + "</div>";
+    }).join("");
+    el("r-cont-list").innerHTML = html || '<div class="combo-empty">No matching available containers.</div>';
+    el("r-cont-list").style.display = "block";
+  }
+  function comboCustomerItems(term) {
+    var t = term.trim().toLowerCase();
+    return state.customers.filter(function (c) {
+      if (!t) return true;
+      return (c.name + " " + (c.accountNumber || "")).toLowerCase().indexOf(t) !== -1;
+    }).slice(0, 30);
+  }
+  function renderCustomerCombo(term) {
+    var matches = comboCustomerItems(term || "");
+    var html = matches.map(function (c) {
+      return '<div class="combo-item" data-act="rental-cust-pick" data-id="' + esc(c.id) + '">' + esc(c.name) + (c.accountNumber ? " (" + esc(c.accountNumber) + ")" : "") + "</div>";
+    }).join("");
+    el("r-cust-list").innerHTML = html || '<div class="combo-empty">No matching customers.</div>';
+    el("r-cust-list").style.display = "block";
+  }
+
+  function rentalNewContainerCreate() {
+    var id = el("r-newcont-id").value.trim();
+    if (!id) return flash("Enter a container ID");
+    var dup = state.containers.some(function (c) { return c.id.toLowerCase() === id.toLowerCase(); });
+    if (dup) return flash("That container ID already exists");
+    var obj = { id: id, type: el("r-newcont-type").value, grade: GRADES[1], location: el("r-newcont-location").value.trim(), status: "Available", notes: "" };
+    state.containers.unshift(obj);
+    commit();
+    el("r-cont").value = id;
+    el("r-cont-search").value = id + " · " + obj.type;
+    el("r-cont-list").style.display = "none";
+    el("r-newcont").style.display = "none";
+    el("r-newcont-id").value = ""; el("r-newcont-location").value = "";
+    flash("Container added and selected");
+  }
+  function rentalNewCustomerCreate() {
+    var name = el("r-newcust-name").value.trim();
+    if (!name) return flash("Enter a customer name");
+    var obj = { id: uid(), name: name, accountNumber: el("r-newcust-account").value.trim(), contact: "", email: "", phone: el("r-newcust-phone").value.trim(), billingAddress: "", notes: "" };
+    state.customers.unshift(obj);
+    commit();
+    el("r-cust").value = obj.id;
+    el("r-cust-search").value = obj.name + (obj.accountNumber ? " (" + obj.accountNumber + ")" : "");
+    el("r-cust-list").style.display = "none";
+    el("r-newcust").style.display = "none";
+    el("r-newcust-name").value = ""; el("r-newcust-account").value = ""; el("r-newcust-phone").value = "";
+    flash("Customer added and selected");
   }
 
   function rentalCreate() {
@@ -1169,7 +1251,7 @@
     if (!pendingList.length) pendingRows = '<tr><td colspan="5" class="empty-row">Nothing waiting — everything eligible is already on the recurring system.</td></tr>';
 
     /* Stage 4: roster */
-    var rosterRows = roster.slice(0, 12).map(function (r) {
+    var rosterRows = roster.map(function (r) {
       var existingInv = state.invoices.find(function (i) { return i.rentalId === r.id && i.kind === "recurring" && i.periodMonth === ym; });
       var actionBtn = existingInv
         ? '<button class="btn sm ' + (existingInv.status === "paid" ? "ghost" : "danger") + '" data-act="bill-recurring-toggle" data-id="' + esc(r.id) + '">' + (existingInv.status === "paid" ? "Paid — locked" : "Undo") + "</button>"
@@ -1201,7 +1283,7 @@
       '<div class="panel"><div class="panel-head"><div><h3><span class="stage-badge">4</span>&nbsp; Recurring roster</h3><p class="panel-sub">' + roster.length + ' rentals on the accounting system\'s auto-bill. Generates a flat monthly invoice per unit for ' + monthLabel(ym) + '.</p></div>' +
       '<button class="btn primary sm" data-act="bill-recurring-generate">Generate recurring invoices</button></div>' +
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Rate/mo</th><th></th></tr></thead><tbody>' + rosterRows + "</tbody></table></div>" +
-      (roster.length > 12 ? '<div class="count" style="margin-top:8px">Showing 12 of ' + roster.length + "</div>" : "") + "</div>";
+      "</div>";
   }
 
   /* --------------------------- collections --------------------------- */
@@ -1315,6 +1397,24 @@
     "cust-save": function (t) { custSave(t.getAttribute("data-id")); },
     "rental-start": rentalStartModal,
     "rental-create": rentalCreate,
+    "rental-cont-pick": function (t) {
+      var id = t.getAttribute("data-id");
+      var c = state.containers.find(function (x) { return x.id === id; });
+      el("r-cont").value = id;
+      el("r-cont-search").value = c ? (c.id + " · " + c.type) : id;
+      el("r-cont-list").style.display = "none";
+    },
+    "rental-cust-pick": function (t) {
+      var id = t.getAttribute("data-id");
+      var c = customerById(id);
+      el("r-cust").value = id;
+      el("r-cust-search").value = c ? (c.name + (c.accountNumber ? " (" + c.accountNumber + ")" : "")) : id;
+      el("r-cust-list").style.display = "none";
+    },
+    "rental-newcont-toggle": function () { var d = el("r-newcont"); d.style.display = d.style.display === "none" ? "grid" : "none"; },
+    "rental-newcont-create": function () { rentalNewContainerCreate(); },
+    "rental-newcust-toggle": function () { var d = el("r-newcust"); d.style.display = d.style.display === "none" ? "grid" : "none"; },
+    "rental-newcust-create": function () { rentalNewCustomerCreate(); },
     "rental-end": function (t) { rentalEndModal(t.getAttribute("data-id")); },
     "rental-end-confirm": function (t) { rentalEndConfirm(t.getAttribute("data-id")); },
     "rental-view": function (t) { ui.rentalView = t.getAttribute("data-view"); render(); },
@@ -1340,9 +1440,13 @@
 
   document.addEventListener("click", function (e) {
     var node = e.target.closest("[data-act]");
-    if (!node) return;
-    var act = node.getAttribute("data-act");
-    if (CLICK[act]) { e.preventDefault(); CLICK[act](node, e); }
+    if (node) {
+      var act = node.getAttribute("data-act");
+      if (CLICK[act]) { e.preventDefault(); CLICK[act](node, e); }
+    }
+    Array.prototype.forEach.call(document.querySelectorAll(".combo-list"), function (list) {
+      if (!list.parentElement.contains(e.target)) list.style.display = "none";
+    });
   });
 
   document.addEventListener("input", function (e) {
@@ -1350,6 +1454,13 @@
     else if (e.target.id === "rental-search") { ui.rentalQ = e.target.value; renderRentalsTable(); }
     else if (e.target.id === "cust-search") { ui.custQ = e.target.value; renderCustomers(el("view")); }
     else if (e.target.id === "coll-search") { ui.collQ = e.target.value; renderCollections(el("view")); }
+    else if (e.target.id === "r-cont-search") { el("r-cont").value = ""; renderContainerCombo(e.target.value); }
+    else if (e.target.id === "r-cust-search") { el("r-cust").value = ""; renderCustomerCombo(e.target.value); }
+  });
+
+  document.addEventListener("focusin", function (e) {
+    if (e.target.id === "r-cont-search") renderContainerCombo(e.target.value);
+    else if (e.target.id === "r-cust-search") renderCustomerCombo(e.target.value);
   });
 
   document.addEventListener("change", function (e) {
