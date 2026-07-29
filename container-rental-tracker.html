@@ -756,6 +756,15 @@
 
   /* --------------------------- customers --------------------------- */
   function renderCustomers(v) {
+    v.innerHTML =
+      '<div class="pagehead"><div><h2>Customers<span class="count">' + state.customers.length + '</span></h2><div class="sub">Who you rent to</div></div>' +
+      '<button class="btn primary" data-act="cust-add">+ Add customer</button></div>' +
+      '<div class="toolbar"><div class="search"><input class="in" id="cust-search" placeholder="Search name, account #, email…" value="' + esc(ui.custQ) + '"></div></div>' +
+      '<div id="cust-table"></div>' +
+      '<div class="count" id="cust-count" style="margin-top:8px"></div>';
+    renderCustomersTable();
+  }
+  function renderCustomersTable() {
     function activeCount(id) { return state.rentals.filter(function (r) { return r.customerId === id && !r.endDate; }).length; }
     var term = ui.custQ.trim().toLowerCase();
     var list = state.customers.filter(function (c) {
@@ -775,13 +784,10 @@
         '<button class="btn sm ghost danger" data-act="cust-del" data-id="' + esc(c.id) + '">Del</button></td></tr>';
     }).join("");
     if (!list.length) rows = '<tr><td colspan="7" class="empty-row">No customers match.</td></tr>';
-    v.innerHTML =
-      '<div class="pagehead"><div><h2>Customers<span class="count">' + state.customers.length + '</span></h2><div class="sub">Who you rent to</div></div>' +
-      '<button class="btn primary" data-act="cust-add">+ Add customer</button></div>' +
-      '<div class="toolbar"><div class="search"><input class="in" id="cust-search" placeholder="Search name, account #, email…" value="' + esc(ui.custQ) + '"></div></div>' +
+    el("cust-table").innerHTML =
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Name</th><th>Account #</th><th>Contact</th><th>Email</th><th>Phone</th><th>Active rentals</th><th></th></tr></thead><tbody>' +
-      rows + "</tbody></table></div>" +
-      '<div class="count" style="margin-top:8px">Showing ' + list.length + " of " + state.customers.length + "</div>";
+      rows + "</tbody></table></div>";
+    el("cust-count").textContent = "Showing " + list.length + " of " + state.customers.length;
   }
 
   function custModal(editing) {
@@ -1306,6 +1312,23 @@
 
   /* --------------------------- collections --------------------------- */
   function renderCollections(v) {
+    var closedStages = ["Resolved", "Written Off", "Closed"];
+    var openCount = state.collections.filter(function (c) { return closedStages.indexOf(c.stage) === -1; }).length;
+    var closedCount = state.collections.length - openCount;
+    v.innerHTML =
+      '<div class="pagehead"><div><h2>Collections</h2><div class="sub">Legacy accounts receivable, with a working status flow and notes</div></div></div>' +
+      '<div class="banner">These balances came from the old delinquent-accounts sheet, not from invoices generated in this tool. They don\'t affect the Billing tab\'s totals — use this list for collections follow-up and to true-up your accounting software.</div>' +
+      '<div class="kpis" id="coll-kpis"></div>' +
+      '<div class="toolbar"><div class="search"><input class="in" id="coll-search" placeholder="Search name, account #, stage…" value="' + esc(ui.collQ) + '"></div></div>' +
+      '<div class="chips" style="margin-bottom:14px">' +
+      '<button class="chip ' + (ui.collStageFilter === "open" ? "on" : "") + '" data-act="coll-filter" data-filter="open">Open (' + openCount + ")</button>" +
+      '<button class="chip ' + (ui.collStageFilter === "closed" ? "on" : "") + '" data-act="coll-filter" data-filter="closed">Resolved / Written off / Closed (' + closedCount + ")</button>" +
+      '<button class="chip ' + (ui.collStageFilter === "all" ? "on" : "") + '" data-act="coll-filter" data-filter="all">All (' + state.collections.length + ")</button></div>" +
+      '<div id="coll-table"></div>' +
+      '<div class="count" id="coll-count" style="margin-top:8px"></div>';
+    renderCollectionsTable();
+  }
+  function renderCollectionsTable() {
     var term = ui.collQ.trim().toLowerCase();
     var closedStages = ["Resolved", "Written Off", "Closed"];
     var list = state.collections.filter(function (c) {
@@ -1316,8 +1339,6 @@
     });
     list = list.slice().sort(function (a, b) { return (Number(b.balance) || 0) - (Number(a.balance) || 0); });
     var total = list.reduce(function (s, c) { return s + (Number(c.balance) || 0); }, 0);
-    var openCount = state.collections.filter(function (c) { return closedStages.indexOf(c.stage) === -1; }).length;
-    var closedCount = state.collections.length - openCount;
 
     var rows = list.map(function (c) {
       var noteCount = (c.notes || []).length;
@@ -1333,20 +1354,13 @@
     }).join("");
     if (!list.length) rows = '<tr><td colspan="6" class="empty-row">No accounts match.</td></tr>';
 
-    v.innerHTML =
-      '<div class="pagehead"><div><h2>Collections</h2><div class="sub">Legacy accounts receivable, with a working status flow and notes</div></div></div>' +
-      '<div class="banner">These balances came from the old delinquent-accounts sheet, not from invoices generated in this tool. They don\'t affect the Billing tab\'s totals — use this list for collections follow-up and to true-up your accounting software.</div>' +
-      '<div class="kpis">' +
+    el("coll-kpis").innerHTML =
       '<div class="kpi" style="--accent:#b3382c"><div class="lbl">Accounts shown</div><div class="val">' + list.length + "</div></div>" +
-      '<div class="kpi" style="--accent:#b3382c"><div class="lbl">Total balance shown</div><div class="val">' + moneyWhole(total) + "</div></div></div>" +
-      '<div class="toolbar"><div class="search"><input class="in" id="coll-search" placeholder="Search name, account #, stage…" value="' + esc(ui.collQ) + '"></div></div>' +
-      '<div class="chips" style="margin-bottom:14px">' +
-      '<button class="chip ' + (ui.collStageFilter === "open" ? "on" : "") + '" data-act="coll-filter" data-filter="open">Open (' + openCount + ")</button>" +
-      '<button class="chip ' + (ui.collStageFilter === "closed" ? "on" : "") + '" data-act="coll-filter" data-filter="closed">Resolved / Written off / Closed (' + closedCount + ")</button>" +
-      '<button class="chip ' + (ui.collStageFilter === "all" ? "on" : "") + '" data-act="coll-filter" data-filter="all">All (' + state.collections.length + ")</button></div>" +
+      '<div class="kpi" style="--accent:#b3382c"><div class="lbl">Total balance shown</div><div class="val">' + moneyWhole(total) + "</div></div>";
+    el("coll-table").innerHTML =
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Customer</th><th>Balance</th><th>Stage</th><th>Latest note</th><th>Phone</th><th></th></tr></thead><tbody>' +
-      rows + "</tbody></table></div>" +
-      '<div class="count" style="margin-top:8px">Showing ' + list.length + " of " + state.collections.length + "</div>";
+      rows + "</tbody></table></div>";
+    el("coll-count").textContent = "Showing " + list.length + " of " + state.collections.length;
   }
 
   function collectionNotesModal(accountId) {
@@ -1577,8 +1591,8 @@
   document.addEventListener("input", function (e) {
     if (e.target.id === "fleet-search") { ui.fleetQ = e.target.value; renderFleetTable(); }
     else if (e.target.id === "rental-search") { ui.rentalQ = e.target.value; renderRentalsTable(); }
-    else if (e.target.id === "cust-search") { ui.custQ = e.target.value; renderCustomers(el("view")); }
-    else if (e.target.id === "coll-search") { ui.collQ = e.target.value; renderCollections(el("view")); }
+    else if (e.target.id === "cust-search") { ui.custQ = e.target.value; renderCustomersTable(); }
+    else if (e.target.id === "coll-search") { ui.collQ = e.target.value; renderCollectionsTable(); }
     else if (e.target.id === "haul-search") { ui.haulQ = e.target.value; renderHaulTable(); }
     else if (e.target.id === "r-cont-search") { el("r-cont").value = ""; renderContainerCombo(e.target.value); }
     else if (e.target.id === "r-cust-search") { el("r-cust").value = ""; renderCustomerCombo(e.target.value); }
