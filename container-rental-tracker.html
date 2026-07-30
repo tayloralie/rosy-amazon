@@ -398,10 +398,7 @@
 
   async function persist() {
     if (!sb) return;
-    if (AUTH.role === "driver") {
-      try { await syncTable("dispatchcards", state.dispatchcards); } catch (e) { flash("Sync error — your scan may not have saved: " + (e.message || e)); }
-      return;
-    }
+    if (AUTH.role === "driver") return; // drivers write via driverUpdateCardFields (a direct UPDATE), not the upsert-based sync below
     try {
       await Promise.all([
         syncTable("containers", state.containers),
@@ -2451,6 +2448,15 @@
     }
     requestAnimationFrame(function () { driverScanFrame(cardId, video); });
   }
+  async function driverUpdateCardFields(cardId, patch) {
+    if (!sb) return;
+    try {
+      var res = await sb.from("dispatchcards").update(rowToDb(patch)).eq("id", cardId);
+      if (res.error) throw res.error;
+    } catch (e) {
+      flash("Sync error — your scan may not have saved: " + (e.message || e));
+    }
+  }
   function driverCaptureContainer(cardId, rawValue) {
     var card = dispatchCardById(cardId);
     if (!card) return;
@@ -2475,7 +2481,8 @@
       msg = "That doesn\u2019t match the expected container (" + card.containerId + ") — flagged for your dispatcher to follow up.";
     }
     state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === cardId ? Object.assign({}, c, patch) : c; });
-    commit();
+    render();
+    driverUpdateCardFields(cardId, patch);
     flash(msg);
     driverJobModal(dispatchCardById(cardId));
   }
