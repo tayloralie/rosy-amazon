@@ -2077,8 +2077,27 @@
     if (item.category === "Sales") return !!item.salesContainerId;
     return item.haulAmount > 0 || !!item.pickupAddress;
   }
+  function quoteEnsureCustomerSelected() {
+    var custId = el("q-customer").value;
+    if (custId) return custId;
+    var typed = el("q-cust-search").value.trim();
+    if (!typed) return "";
+    var existing = state.customers.find(function (c) { return c.name.trim().toLowerCase() === typed.toLowerCase(); });
+    if (existing) {
+      el("q-customer").value = existing.id;
+      el("q-cust-search").value = existing.name + (existing.accountNumber ? " (" + existing.accountNumber + ")" : "");
+      return existing.id;
+    }
+    var obj = { id: uid(), name: typed, accountNumber: "", contact: "", email: "", phone: "", billingAddress: "", notes: "" };
+    state.customers.unshift(obj);
+    el("q-customer").value = obj.id;
+    flash("Added new customer \u201c" + typed + "\u201d automatically");
+    commit();
+    return obj.id;
+  }
   function quoteAddLineItem() {
-    if (!el("q-customer").value) return flash("Pick or add a customer first");
+    quoteEnsureCustomerSelected();
+    if (!el("q-customer").value) return flash("Enter a customer first");
     var item = quoteReadCurrentLineItem();
     if (!quoteLineItemHasContent(item)) return flash("Fill in this line item before adding it");
     if (item.category === "Sales" && !item.salesContainerId) return flash("Pick a sales container for this line item");
@@ -2131,8 +2150,9 @@
     renderQuoteLineItemsList();
   }
   function quoteSave(origId) {
+    quoteEnsureCustomerSelected();
     var custId = el("q-customer").value;
-    if (!custId) return flash("Pick or add a customer");
+    if (!custId) return flash("Enter a customer");
     var category = el("q-category").value;
     var cust = customerById(custId);
     var customerName = cust ? cust.name : "";
