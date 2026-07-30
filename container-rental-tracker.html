@@ -189,6 +189,8 @@
   <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 (function () {
   "use strict";
@@ -396,7 +398,10 @@
 
   async function persist() {
     if (!sb) return;
-    if (AUTH.role === "driver") return; // drivers have no write actions in this stage, and RLS would reject most of these anyway
+    if (AUTH.role === "driver") {
+      try { await syncTable("dispatchcards", state.dispatchcards); } catch (e) { flash("Sync error — your scan may not have saved: " + (e.message || e)); }
+      return;
+    }
     try {
       await Promise.all([
         syncTable("containers", state.containers),
@@ -423,11 +428,18 @@
       applyMyProfile();
 
       if (AUTH.role === "driver") {
-        // Locked down by RLS to just today's released cards for this driver — no point fetching the rest.
-        var dcRes = await sb.from("dispatchcards").select("*");
-        state.dispatchcards = dcRes.error ? [] : dcRes.data.map(rowFromDb);
-        state.containers = []; state.customers = []; state.rentals = []; state.invoices = [];
-        state.collections = []; state.hauls = []; state.salescontainers = []; state.quotes = [];
+        // RLS scopes dispatchcards to just today's released cards for this driver, and containers/
+        // salescontainers to read-only (needed so a scanned code can be checked against real inventory).
+        var driverResults = await Promise.all([
+          sb.from("dispatchcards").select("*"),
+          sb.from("containers").select("*"),
+          sb.from("salescontainers").select("*")
+        ]);
+        state.dispatchcards = driverResults[0].error ? [] : driverResults[0].data.map(rowFromDb);
+        state.containers = driverResults[1].error ? [] : driverResults[1].data.map(rowFromDb);
+        state.salescontainers = driverResults[2].error ? [] : driverResults[2].data.map(rowFromDb);
+        state.customers = []; state.rentals = []; state.invoices = [];
+        state.collections = []; state.hauls = []; state.quotes = [];
         render();
         return;
       }
@@ -582,6 +594,68 @@
     for (var i = 0; i < state.containers.length; i++) if (state.containers[i].id === id) return state.containers[i].id;
     return id;
   }
+  function containerById(id) {
+    for (var i = 0; i < state.containers.length; i++) if (state.containers[i].id === id) return state.containers[i];
+    return null;
+  }
+  function findContainerCaseInsensitive(pool, rawId) {
+    var list = pool === "sales" ? state.salescontainers : state.containers;
+    var target = (rawId || "").trim().toLowerCase();
+    for (var i = 0; i < list.length; i++) if ((list[i].id || "").trim().toLowerCase() === target) return list[i];
+    return null;
+  }
+
+  /* --------------------------- QR labels --------------------------- */
+  function qrCodeHtml(text) {
+    if (!window.qrcode) return '<div class="muted" style="font-size:11px">QR library didn\u2019t load — check your internet connection and reload.</div>';
+    var qr = window.qrcode(0, "M");
+    qr.addData(text);
+    qr.make();
+    if (typeof qr.createSvgTag === "function") return qr.createSvgTag(4, 4);
+    return qr.createImgTag(4, 4);
+  }
+  function labelsModal(pool) {
+    var list = pool === "sales" ? state.salescontainers : state.containers;
+    var rows = list.map(function (c) {
+      return '<label class="listrow" style="cursor:pointer"><span><input type="checkbox" class="label-check" value="' + esc(c.id) + '" style="width:auto;margin-right:8px">' + esc(c.id) + " · " + esc(c.type) + "</span></label>";
+    }).join("");
+    if (!list.length) rows = '<div class="empty-row">Nothing here to print labels for yet.</div>';
+    openModal("Print QR Labels",
+      '<div class="muted" style="font-size:12.5px">Pick which containers need a label, then print. Each label shows a scannable QR code plus the container ID in plain text as a fallback.</div>' +
+      '<div class="fld"><label style="display:flex;align-items:center;gap:8px;font-weight:500;text-transform:none;letter-spacing:0"><input type="checkbox" id="labels-select-all" style="width:auto"> Select all (' + list.length + ")</label></div>" +
+      '<div class="fld" style="max-height:320px;overflow-y:auto"><div class="list" id="labels-list">' + rows + "</div></div>",
+      '<button class="btn" data-act="modal-close">Cancel</button>' +
+      '<button class="btn primary" data-act="labels-print" data-pool="' + esc(pool) + '">Print selected</button>');
+  }
+  function labelsToggleAll(checked) {
+    Array.prototype.forEach.call(document.querySelectorAll(".label-check"), function (cb) { cb.checked = checked; });
+  }
+  function labelsPrint(pool) {
+    var ids = Array.prototype.filter.call(document.querySelectorAll(".label-check"), function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
+    if (!ids.length) return flash("Pick at least one container to print");
+    var list = pool === "sales" ? state.salescontainers : state.containers;
+    var items = ids.map(function (id) { return list.find(function (c) { return c.id === id; }); }).filter(Boolean);
+    var win = window.open("", "_blank");
+    if (!win) return flash("Your browser blocked the print window — allow pop-ups for this page and try again");
+    var labelsHtml = items.map(function (c) {
+      return '<div class="qrlabel"><div class="qrcode">' + qrCodeHtml(c.id) + '</div><div class="qrtext">' + esc(c.id) + "</div></div>";
+    }).join("");
+    win.document.write(
+      "<html><head><title>Container QR Labels</title><style>" +
+      "body{font-family:-apple-system,Arial,sans-serif;margin:0;padding:20px;}" +
+      ".qrgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}" +
+      ".qrlabel{border:1px dashed #999;border-radius:6px;padding:12px;text-align:center;page-break-inside:avoid;}" +
+      ".qrcode svg, .qrcode img{width:120px;height:120px;}" +
+      ".qrtext{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-weight:700;margin-top:8px;word-break:break-word;}" +
+      "@media print { body{padding:0;} }" +
+      "</style></head><body><div class=\"qrgrid\">" + labelsHtml + "</div></body></html>"
+    );
+    win.document.close();
+    closeModal();
+    flash("Opened " + items.length + " label(s) in a new tab — use your browser's print dialog");
+    setTimeout(function () { win.focus(); win.print(); }, 400);
+  }
+
   function rentalById(id) {
     for (var i = 0; i < state.rentals.length; i++) if (state.rentals[i].id === id) return state.rentals[i];
     return null;
@@ -777,6 +851,7 @@
       '<div class="sub">Every container tracked, and where it stands</div></div>' +
       '<div style="display:flex;gap:8px">' +
       '<button class="btn" data-act="fleet-import">Import</button>' +
+      '<button class="btn" data-act="labels-open" data-pool="fleet">Print QR Labels</button>' +
       '<button class="btn primary" data-act="fleet-add">+ Add container</button></div></div>' +
       '<div class="toolbar">' +
       '<div class="search"><input class="in" id="fleet-search" placeholder="Search ID, location, customer…" value="' + esc(ui.fleetQ) + '"></div>' +
@@ -1764,7 +1839,8 @@
   function renderSalesInv(v) {
     v.innerHTML =
       '<div class="pagehead"><div><h2>Sales Inventory<span class="count">' + state.salescontainers.length + '</span></h2><div class="sub">Containers for outright sale — separate from the rental fleet</div></div>' +
-      '<button class="btn primary" data-act="sales-add">+ Add sales container</button></div>' +
+      '<div style="display:flex;gap:8px"><button class="btn" data-act="labels-open" data-pool="sales">Print QR Labels</button>' +
+      '<button class="btn primary" data-act="sales-add">+ Add sales container</button></div></div>' +
       '<div class="toolbar"><div class="search"><input class="in" id="sales-search" placeholder="Search ID, type, grade, color…" value="' + esc(ui.salesQ) + '"></div></div>' +
       '<div class="chips" style="margin-bottom:14px">' +
       ["all", "Available", "Reserved", "Sold"].map(function (s) {
@@ -2275,10 +2351,19 @@
       return c.scheduledDate === iso && c.released && c.driver === AUTH.driverName;
     });
     var cardsHtml = myCards.map(function (c) {
-      return '<div class="card" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + ')">' +
+      var needsContainer = c.category !== "Contract Haul";
+      var statusNote = "";
+      if (needsContainer) {
+        if (c.scanStatus === "mismatch") statusNote = '<div class="banner" style="margin-top:8px">Scanned container doesn\u2019t match — flagged for your dispatcher</div>';
+        else if (c.scanStatus === "unrecognized") statusNote = '<div class="banner" style="margin-top:8px">Scanned code not recognized — flagged for your dispatcher</div>';
+        else if (c.containerId) statusNote = '<div class="subline" style="margin-top:8px;color:var(--ok)">Container: ' + esc(c.containerId) + (c.scanStatus === "matched" ? " — confirmed" : c.scanStatus === "assigned" ? " — assigned" : "") + "</div>";
+        else statusNote = '<div class="subline" style="margin-top:8px">Container not captured yet — tap to scan</div>';
+      }
+      return '<div class="card drag-card-off" data-act="driver-job-open" data-id="' + esc(c.id) + '" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + ');cursor:pointer">' +
         '<span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span>" +
         '<h3 style="margin:10px 0 4px">' + esc(c.customerName) + "</h3>" +
         '<div class="muted">' + esc(dispatchCardSummary(c)) + "</div>" +
+        statusNote +
         "</div>";
     }).join("");
     v.innerHTML =
@@ -2287,6 +2372,100 @@
   }
   function dispatchDriverAccentVar(cat) {
     return cat === "Rental Delivery" ? "ok" : cat === "Rental Return" ? "danger" : cat === "Sales" ? "rent" : "credit";
+  }
+  function driverJobModal(card) {
+    if (!card) return;
+    var needsContainer = card.category !== "Contract Haul";
+    var statusHtml = "";
+    if (needsContainer) {
+      if (card.scanStatus === "mismatch") statusHtml = '<div class="banner">Scanned <span class="mono">' + esc(card.scannedValue || "") + '</span> — doesn\u2019t match the expected container. Flagged for your dispatcher.</div>';
+      else if (card.scanStatus === "unrecognized") statusHtml = '<div class="banner">Scanned <span class="mono">' + esc(card.scannedValue || "") + '</span> — not recognized. Flagged for your dispatcher.</div>';
+      else if (card.containerId) statusHtml = '<div class="formula" style="color:var(--ok)">Container ' + esc(card.containerId) + (card.scanStatus === "matched" ? " confirmed" : card.scanStatus === "assigned" ? " assigned to this job" : "") + "</div>";
+    }
+    openModal(esc(card.customerName),
+      '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
+      statusHtml +
+      (needsContainer
+        ? '<div class="fld"><label>Container</label>' +
+          '<button type="button" class="btn primary" style="width:100%" data-act="driver-scan-start" data-id="' + esc(card.id) + '">\uD83D\uDCF7 Scan QR Code</button>' +
+          '<div id="driver-scan-area" style="margin-top:10px"></div></div>' +
+          '<div class="fld"><label>Or type the container ID</label>' +
+          '<div style="display:flex;gap:8px"><input class="in mono" id="driver-manual-id" placeholder="e.g. REXU 1234567">' +
+          '<button type="button" class="btn" data-act="driver-manual-submit" data-id="' + esc(card.id) + '">Submit</button></div></div>'
+        : ""),
+      '<button class="btn" data-act="modal-close">Close</button>');
+  }
+  var DRIVER_SCAN_STREAM = null;
+  function driverStopScan() {
+    if (DRIVER_SCAN_STREAM) {
+      DRIVER_SCAN_STREAM.getTracks().forEach(function (t) { t.stop(); });
+      DRIVER_SCAN_STREAM = null;
+    }
+  }
+  function driverStartScan(cardId) {
+    var area = el("driver-scan-area");
+    if (!area) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      area.innerHTML = '<div class="muted" style="color:var(--danger);font-size:12.5px">Camera access isn\u2019t available in this browser — use the manual entry below.</div>';
+      return;
+    }
+    area.innerHTML = '<video id="driver-scan-video" style="width:100%;border-radius:8px;background:#000" playsinline muted></video>' +
+      '<div class="muted" style="font-size:12px;margin-top:6px">Point the camera at the QR code.</div>';
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function (stream) {
+      DRIVER_SCAN_STREAM = stream;
+      var video = el("driver-scan-video");
+      if (!video) { driverStopScan(); return; }
+      video.srcObject = stream;
+      video.play();
+      driverScanFrame(cardId, video);
+    }).catch(function (err) {
+      area.innerHTML = '<div class="muted" style="color:var(--danger);font-size:12.5px">Couldn\u2019t open the camera (' + esc(err.message || "permission denied") + '). Use the manual entry below instead.</div>';
+    });
+  }
+  function driverScanFrame(cardId, video) {
+    if (!DRIVER_SCAN_STREAM) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth) {
+      var canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      var code = window.jsQR ? window.jsQR(imageData.data, imageData.width, imageData.height) : null;
+      if (code && code.data) {
+        driverStopScan();
+        driverCaptureContainer(cardId, code.data);
+        return;
+      }
+    }
+    requestAnimationFrame(function () { driverScanFrame(cardId, video); });
+  }
+  function driverCaptureContainer(cardId, rawValue) {
+    var card = dispatchCardById(cardId);
+    if (!card) return;
+    var scanned = (rawValue || "").trim();
+    if (!scanned) return flash("Nothing entered");
+    var pool = card.category === "Sales" ? "sales" : "fleet";
+    var found = findContainerCaseInsensitive(pool, scanned);
+    var patch = { scannedValue: scanned };
+    var msg;
+    if (!found) {
+      patch.scanStatus = "unrecognized";
+      msg = "That code isn\u2019t recognized — flagged for your dispatcher to follow up.";
+    } else if (!card.containerId) {
+      patch.containerId = found.id;
+      patch.scanStatus = "assigned";
+      msg = "Container " + found.id + " assigned to this job.";
+    } else if (card.containerId.trim().toLowerCase() === found.id.trim().toLowerCase()) {
+      patch.scanStatus = "matched";
+      msg = "Confirmed — container matches.";
+    } else {
+      patch.scanStatus = "mismatch";
+      msg = "That doesn\u2019t match the expected container (" + card.containerId + ") — flagged for your dispatcher to follow up.";
+    }
+    state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === cardId ? Object.assign({}, c, patch) : c; });
+    commit();
+    flash(msg);
+    driverJobModal(dispatchCardById(cardId));
   }
   function dispatchCatClass(cat) {
     return cat === "Rental Delivery" ? "b-ok" : cat === "Rental Return" ? "b-danger" : cat === "Sales" ? "b-rent" : "b-credit";
@@ -2399,8 +2578,9 @@
     return '<span class="driver-badge" style="background:' + driverColor(driverName) + '" title="Assigned to ' + esc(driverName) + '">' + esc(driverName.slice(-1)) + "</span>";
   }
   function dispatchCardPillHtml(c) {
-    var label = (c.released ? "👁 " : "") + driverBadgeHtml(c.driver) + esc(c.customerName);
-    return '<div class="dcard drag-card ' + dispatchPillClass(c.category) + (c.released ? " dcard-released" : "") + '" draggable="true" data-act="dispatch-manage" data-id="' + esc(c.id) + '" title="' + esc(c.category) + ": " + esc(c.customerName) + (c.driver ? " — " + esc(c.driver) : " — unassigned") + (c.released ? " — released to driver" : "") + '">' + label + "</div>";
+    var flagged = c.scanStatus === "mismatch" || c.scanStatus === "unrecognized";
+    var label = (flagged ? "⚠ " : "") + (c.released ? "👁 " : "") + driverBadgeHtml(c.driver) + esc(c.customerName);
+    return '<div class="dcard drag-card ' + dispatchPillClass(c.category) + (c.released ? " dcard-released" : "") + '" draggable="true" data-act="dispatch-manage" data-id="' + esc(c.id) + '" title="' + esc(c.category) + ": " + esc(c.customerName) + (c.driver ? " — " + esc(c.driver) : " — unassigned") + (c.released ? " — released to driver" : "") + (flagged ? " — SCAN FLAGGED: " + esc(c.scannedValue || "") : "") + '">' + label + "</div>";
   }
   function renderDispatchCalendar() {
     if (ui.dispatchViewMode === "day") renderDispatchDayView();
@@ -2476,8 +2656,20 @@
     var driverOpts = '<option value="">Unassigned</option>' + DRIVERS.map(function (d) {
       return '<option value="' + esc(d) + '"' + (d === card.driver ? " selected" : "") + ">" + esc(d) + "</option>";
     }).join("");
+    var needsContainer = card.category !== "Contract Haul";
+    var flagged = card.scanStatus === "mismatch" || card.scanStatus === "unrecognized";
+    var scanInfo = "";
+    if (flagged) {
+      scanInfo = '<div class="banner">Driver scanned <span class="mono">' + esc(card.scannedValue || "") + "</span> — " +
+        (card.scanStatus === "mismatch" ? "doesn\u2019t match the container below." : "not recognized as a known container.") +
+        " Correct the container ID below if needed.</div>";
+    } else if (card.scanStatus === "matched" || card.scanStatus === "assigned") {
+      scanInfo = '<div class="formula" style="color:var(--ok)">Driver confirmed via scan' + (card.scannedValue ? " (" + esc(card.scannedValue) + ")" : "") + "</div>";
+    }
     openModal((scheduled ? "Manage" : "Schedule") + " job — " + esc(card.customerName),
       '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
+      scanInfo +
+      (needsContainer ? '<div class="fld"><label>Container ID</label><input class="in mono" id="dc-container" value="' + esc(card.containerId || "") + '" placeholder="Not yet captured"></div>' : "") +
       '<div class="fld"><label>Scheduled date</label>' +
       '<div class="combo-wrap"><input type="hidden" id="dc-date" value="' + esc(card.scheduledDate || "") + '">' +
       '<input class="in" id="dc-date-display" readonly placeholder="Click to pick a date" value="' + esc(formatDateDisplay(card.scheduledDate)) + '" data-act="quote-date-toggle" data-field="dc-date" style="cursor:pointer">' +
@@ -2493,7 +2685,18 @@
     var date = el("dc-date").value || "";
     var driver = el("dc-driver").value || "";
     var released = el("dc-released").checked;
-    state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === id ? Object.assign({}, c, { scheduledDate: date, driver: driver, released: released }) : c; });
+    var patch = { scheduledDate: date, driver: driver, released: released };
+    var containerField = el("dc-container");
+    if (containerField) {
+      var newContainerId = containerField.value.trim();
+      var card = dispatchCardById(id);
+      if (card && newContainerId !== (card.containerId || "")) {
+        patch.containerId = newContainerId;
+        patch.scanStatus = newContainerId ? "matched" : null;
+        patch.scannedValue = null;
+      }
+    }
+    state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === id ? Object.assign({}, c, patch) : c; });
     closeModal();
     flash(date ? "Scheduled for " + date + (driver ? " — " + driver : "") : "Moved to the queue");
     commit();
@@ -2599,7 +2802,7 @@
       '<div class="modal-body">' + body + "</div>" +
       '<div class="modal-foot">' + foot + "</div></div></div>";
   }
-  function closeModal() { el("overlay-root").innerHTML = ""; }
+  function closeModal() { driverStopScan(); el("overlay-root").innerHTML = ""; }
 
   /* --------------------------- dispatch --------------------------- */
   var CLICK = {
@@ -2613,6 +2816,16 @@
     "fleet-del": function (t) { fleetDel(t.getAttribute("data-id")); },
     "fleet-save": function (t) { fleetSave(t.getAttribute("data-id")); },
     "fleet-import": fleetImportModal,
+    "labels-open": function (t) { labelsModal(t.getAttribute("data-pool")); },
+    "labels-print": function (t) { labelsPrint(t.getAttribute("data-pool")); },
+    "driver-job-open": function (t) { driverJobModal(dispatchCardById(t.getAttribute("data-id"))); },
+    "driver-scan-start": function (t) { driverStartScan(t.getAttribute("data-id")); },
+    "driver-manual-submit": function (t) {
+      driverStopScan();
+      var id = t.getAttribute("data-id");
+      var val = el("driver-manual-id") ? el("driver-manual-id").value : "";
+      driverCaptureContainer(id, val);
+    },
     "fleet-import-run": fleetImportRun,
     "fleet-filter": function (t) { ui.fleetFilter = t.getAttribute("data-status"); render(); },
     "cust-add": function () { custModal(null); },
@@ -2819,6 +3032,7 @@
 
     else if (e.target.classList.contains("coll-stage-select")) { setCollectionStage(e.target.getAttribute("data-id"), e.target.value); renderCollections(el("view")); }
     else if (e.target.id === "q-category") { quoteShowGroup(e.target.value); }
+    else if (e.target.id === "labels-select-all") { labelsToggleAll(e.target.checked); }
     else if (e.target.id === "q-sameaddr-check") {
       if (e.target.checked && QUOTE_LINE_ITEMS.length) el("q-shipto").value = QUOTE_LINE_ITEMS[0].shipToAddress || "";
     }
