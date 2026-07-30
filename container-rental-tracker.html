@@ -122,6 +122,34 @@
   .combo-item { padding:8px 11px; cursor:pointer; font-size:13px; }
   .combo-item:hover { background:var(--surface-2); }
   .combo-empty { padding:8px 11px; color:var(--muted); font-size:12.5px; }
+  .cal-panel { padding:10px 12px; width:260px; }
+  .cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; font-weight:650; font-size:13px; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; text-align:center; font-size:12.5px; }
+  .cal-dow { color:var(--muted); font-weight:650; padding:4px 0; }
+  .cal-day { padding:6px 0; border-radius:6px; cursor:pointer; }
+  .cal-day:hover { background:var(--surface-2); }
+  .cal-sel { background:var(--primary); color:#fff; }
+  .cal-today:not(.cal-sel) { border:1px solid var(--primary); }
+  .cal-foot { display:flex; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+  .dispatch-cal { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .dcal-dow { font-size:11px; font-weight:650; color:var(--muted); text-align:center; padding:4px 0; text-transform:uppercase; }
+  .dcal-day { min-height:88px; border:1px solid var(--line); border-radius:8px; padding:5px; background:#fff; overflow:hidden; }
+  .dcal-day.dcal-empty { background:transparent; border-color:transparent; }
+  .dcal-day.dcal-today { border-color:var(--primary); border-width:2px; }
+  .dcal-daynum { font-size:11px; color:var(--muted); font-weight:650; margin-bottom:3px; }
+  .dcard { font-size:11px; padding:2px 6px; border-radius:5px; margin-bottom:3px; cursor:pointer; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dcard-rental-delivery { background:var(--ok-bg); color:var(--ok); }
+  .dcard-rental-return { background:var(--danger-bg); color:var(--danger); }
+  .dcard-sales { background:var(--rent-bg); color:var(--rent); }
+  .dcard-contract-haul { background:var(--credit-bg); color:var(--credit); }
+  .dcard[draggable="true"] { cursor:grab; }
+  .dcard-dragging { opacity:.35; }
+  .dcal-day-over { background:var(--surface-2); border-color:var(--primary-2); border-style:dashed; }
+  .dcard-released { box-shadow:0 0 0 2px currentColor inset; }
+  .driver-badge { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; color:#fff; font-size:9.5px; font-weight:700; margin-right:4px; flex-shrink:0; vertical-align:-2px; }
+  .driver-lane { margin-bottom:18px; }
+  .driver-lane:last-child { margin-bottom:0; }
+  .driver-lane-label { display:flex; align-items:center; margin:0 0 8px; font-size:12.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:650; }
   .quickadd { margin-top:8px; padding:10px; border:1px dashed var(--line); border-radius:8px; display:grid; gap:8px; }
   .quote-group { display:grid; gap:14px; }
 </style>
@@ -148,6 +176,8 @@
       <button data-act="tab" data-tab="haul">Contract Haul</button>
       <button data-act="tab" data-tab="sales-inv">Sales Inventory</button>
       <button data-act="tab" data-tab="quotes">Quotes</button>
+      <button data-act="tab" data-tab="dispatch">Dispatch</button>
+      <button data-act="tab" data-tab="driver-access">Driver Access</button>
     </nav>
   </header>
   <main id="view"></main>
@@ -174,13 +204,15 @@
     : null;
 
   /* ------------------------- constants ------------------------- */
-  var TYPES = ["20' Standard", "40' Standard", "40' High Cube", "20' Reefer", "40' Reefer", "Other"];
+  var TYPES = ["20' Standard", "40' Standard", "40' High Cube", "Other"];
   var GRADES = ["New / One-Trip", "Cargo-Worthy", "Wind & Watertight", "As-Is"];
   var MANUAL_STATUSES = ["Available", "Maintenance", "Out of Service"];
   var COLLECTION_STAGES = ["New", "No Contact", "Contacted", "Promise to Pay", "Payment Plan", "Hard Time/Catching Up", "Collections", "Disputed", "Resolved", "Written Off", "Closed"];
   var SALES_STATUSES = ["Available", "Reserved", "Sold"];
   var SALES_HOLD_DAYS = 7; // a sales container reserved to an unapproved quote this long auto-releases
   var QUOTE_CATEGORIES = ["Rental", "Sales", "Contract Haul"];
+  var DISPATCH_CATEGORIES = ["Rental Delivery", "Rental Return", "Sales", "Contract Haul"];
+  var DRIVERS = ["Driver 1", "Driver 2"]; // only two drivers today — rename these to real names any time
   var STORE_KEY = "crt_data_v3";
   var RECURRING_STALE_MONTHS = 2; // safety net: unflagged rentals this old (relative to the closing month) surface regardless of exact month match
 
@@ -190,7 +222,7 @@
   var REAL_CONTRACT_HAUL = [{"id": "397ec834-e25a-4378-9400-07dce55903e2", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595848", "pickupAddress": "1580 Agate Street, Eugene", "shipToAddress": "", "serviceDate": "2026-07-14", "amount": 153.25, "contact": "", "driver": "Jim 7/14", "notes": "", "billed": false}, {"id": "c3db0475-bd6e-4d3f-9c85-978140a4e290", "customerName": "Ryan", "accountNumber": "card to Joey", "poNumber": "", "pickupAddress": "Cecil Avenue, Eugene", "shipToAddress": "Cloverdale Road, Creswell", "serviceDate": "2026-07-27", "amount": 900.0, "contact": "Ryan", "driver": "Jim 7/27", "notes": "", "billed": false}, {"id": "7592d7e1-d85c-4ed6-bc05-c7a4fb48f23e", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595314", "pickupAddress": "", "shipToAddress": "2659 Olympic Street, Springfield", "serviceDate": "2026-07-28", "amount": 153.25, "contact": "Cody", "driver": "Jim 7/28", "notes": "", "billed": false}, {"id": "4507e3e6-3317-4708-975b-6322b0a23eb9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595168", "pickupAddress": "", "shipToAddress": "1580 Agate Street, Eugene", "serviceDate": "2026-07-27", "amount": 459.75, "contact": "Grant", "driver": "Jim 7/27", "notes": "", "billed": false}, {"id": "5234efe4-a0aa-4207-bb3b-579b01fb5b7f", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595681", "pickupAddress": "", "shipToAddress": "1265 Candlelight Drive, Eugene", "serviceDate": "2026-07-24", "amount": 153.25, "contact": "Corey", "driver": "Jim 7/24", "notes": "", "billed": false}, {"id": "25b68d1c-8ff5-4057-858d-43d84683eb5d", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595610", "pickupAddress": "", "shipToAddress": "2121 Madrona Street, North Bend", "serviceDate": "2026-07-23", "amount": 2008.5, "contact": "Troy", "driver": "Jim 7/23 and 7/28", "notes": "", "billed": false}, {"id": "aab34697-46ff-4d36-92a7-7c89093de04c", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595612", "pickupAddress": "", "shipToAddress": "1265 Candlelight Drive, Eugene", "serviceDate": "2026-07-23", "amount": 153.25, "contact": "Corey", "driver": "Jim 7/23", "notes": "", "billed": false}, {"id": "73f664bc-6829-4ec4-b77c-6274b4c40d4b", "customerName": "Tracey Mcpherson Friend", "accountNumber": "", "poNumber": "", "pickupAddress": "", "shipToAddress": "Tracey's shop", "serviceDate": "2026-07-20", "amount": 900.0, "contact": "Aaron", "driver": "Jim 7/20", "notes": "", "billed": false}, {"id": "81d9495f-4bb0-45ff-805e-ba75c2217204", "customerName": "Andy McGee", "accountNumber": "", "poNumber": "", "pickupAddress": "Empire Concrete", "shipToAddress": "955 A Street", "serviceDate": "2026-07-17", "amount": 300.0, "contact": "Andy", "driver": "Jim 7/17", "notes": "", "billed": false}, {"id": "44e37ce8-da52-424d-935a-e6f3ed2f1dec", "customerName": "Edge Construction", "accountNumber": "", "poNumber": "342794", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-07-17", "amount": 500.0, "contact": "Troy", "driver": "Jim 7/17", "notes": "", "billed": false}, {"id": "95d7a6c5-67eb-4b54-812d-16cdcbd8b843", "customerName": "Harvey and Price", "accountNumber": "", "poNumber": "2670256 \"The Mark\"", "pickupAddress": "2015 Nugget Way", "shipToAddress": "1290 Alder", "serviceDate": "2026-07-16", "amount": 300.0, "contact": "Josh", "driver": "Jim 7/16", "notes": "", "billed": false}, {"id": "9c946636-e654-4327-b21f-42b4340ff8e7", "customerName": "Vanessa", "accountNumber": "", "poNumber": "", "pickupAddress": "", "shipToAddress": "85295 Marriott Lane, Pleasant Hill", "serviceDate": "2026-07-15", "amount": 300.0, "contact": "Vanessa", "driver": "Jim 7/15", "notes": "on site move", "billed": false}, {"id": "8c738298-e873-454b-9de7-a36d6981b318", "customerName": "Harvey and Price", "accountNumber": "", "poNumber": "NexGen#2531455", "pickupAddress": "410 River Ave", "shipToAddress": "17th and Moss", "serviceDate": "2026-07-14", "amount": 300.0, "contact": "Josh", "driver": "Jim 7/14", "notes": "", "billed": false}, {"id": "23aa58fd-77b3-439e-b5cd-c2d44ca1c4ec", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595230", "pickupAddress": "700 Old Salem Road NE, Albany", "shipToAddress": "", "serviceDate": "2026-07-10", "amount": 361.25, "contact": "Jeff", "driver": "Jim 7/10", "notes": "", "billed": false}, {"id": "1a77146e-90c0-4875-ae8a-f0316640eafb", "customerName": "Camp Creek Electric", "accountNumber": "08-92038", "poNumber": "Pengra to Hwy 58", "pickupAddress": "39194 Pengra Rd, Dexter", "shipToAddress": "34597 Hwy 58", "serviceDate": "2026-07-07", "amount": 450.0, "contact": "Josh", "driver": "Jim 7/8", "notes": "", "billed": false}, {"id": "6c4f850b-1e9c-4c68-bac3-7170e6ec3083", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595058", "pickupAddress": "82710 Maple Street, Dunes City Florence", "shipToAddress": "", "serviceDate": "2026-07-07", "amount": 465.0, "contact": "Daphne", "driver": "Jim 7/7", "notes": "", "billed": false}, {"id": "e34f78ff-8b1f-4641-9827-34bc54dceace", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594988", "pickupAddress": "2815 Chad Drive, Eugene", "shipToAddress": "", "serviceDate": "2026-07-07", "amount": 153.25, "contact": "Chase/Mike/Anthony", "driver": "Jim 7/7", "notes": "", "billed": false}, {"id": "496671e3-680e-46b5-a0a3-fe110ff47a10", "customerName": "Ordell Construction", "accountNumber": "08-0091974", "poNumber": "Creswell High", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-07-01", "amount": 900.0, "contact": "Billy", "driver": "Jim 7/1", "notes": "", "billed": true}, {"id": "b7192946-e315-43b2-8908-f8056efdedc9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595086", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-12", "amount": 477.25, "contact": "Laura", "driver": "Jim 5/12", "notes": "mistaken Rose Hill POs from May and Gunnar Cave", "billed": true}, {"id": "d61278e2-bca9-4465-a02b-9eca166b0583", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594848", "pickupAddress": "55 Division Avenue, Eugene", "shipToAddress": "", "serviceDate": "2026-06-30", "amount": 459.75, "contact": "", "driver": "Jim 6/30", "notes": "", "billed": true}, {"id": "2e4e0730-6b27-43a4-b2c9-96e32b94f6b1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594780", "pickupAddress": "", "shipToAddress": "1580 Agate Street, Eugene", "serviceDate": "2026-06-29", "amount": 153.25, "contact": "Michael", "driver": "Jim 6/29", "notes": "", "billed": true}, {"id": "b912f815-dfd4-4b01-9882-504fbcae3ae0", "customerName": "Ptarmigan Trails", "accountNumber": "08-95949", "poNumber": "move from 52nd", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-06-25", "amount": 180.0, "contact": "Mike", "driver": "Jim 6/25", "notes": "", "billed": true}, {"id": "2c3ac353-cbe0-4ed6-a256-56b775e5dee1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "LCC move", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-06-24", "amount": 350.0, "contact": "Mike", "driver": "Jim 6/24", "notes": "", "billed": true}, {"id": "5fa56138-fb27-46c3-934a-74774bd2663c", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594569", "pickupAddress": "3859 Goldfish Farm Road SE, Albany", "shipToAddress": "", "serviceDate": "2026-06-23", "amount": 312.0, "contact": "Russ", "driver": "Jim 6/23", "notes": "", "billed": true}, {"id": "d9c4cb44-5e76-4410-955a-7d7008ca3168", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594487", "pickupAddress": "4701 Hwy 101, Florence", "shipToAddress": "", "serviceDate": "2026-06-22", "amount": 465.0, "contact": "Mike", "driver": "Jim 6/22", "notes": "", "billed": true}, {"id": "29063f05-a700-4789-a26b-e530412b8cec", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594489", "pickupAddress": "2400 Lincoln Street, Eugene", "shipToAddress": "", "serviceDate": "2026-06-19", "amount": 153.25, "contact": "Shane", "driver": "Jim 6/19", "notes": "", "billed": true}, {"id": "36bd09aa-5777-401b-bf37-c329e1e0aa2e", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594432", "pickupAddress": "", "shipToAddress": "Awbrey Park and Spring Creek Elementary", "serviceDate": "2026-06-18", "amount": 306.5, "contact": "Ed", "driver": "Jim 6/18", "notes": "", "billed": true}, {"id": "9ace0c1d-f0fd-4b49-ac47-5032546f39a0", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594435", "pickupAddress": "", "shipToAddress": "McCornack and Charlemagne Elementary", "serviceDate": "2026-06-18", "amount": 306.25, "contact": "Ed", "driver": "Jim 6/18", "notes": "", "billed": true}, {"id": "9c732456-9125-4055-9b8f-84e624014dfe", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594362", "pickupAddress": "", "shipToAddress": "Edgewood Elementary", "serviceDate": "2026-06-17", "amount": 306.25, "contact": "Ed", "driver": "Jim 6/17", "notes": "", "billed": true}, {"id": "76a7a943-7f1e-4c93-a5e5-65b5c8337474", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594361", "pickupAddress": "", "shipToAddress": "Charlemagne Elementary", "serviceDate": "2026-06-17", "amount": 153.25, "contact": "Ed", "driver": "Jim 6/17", "notes": "", "billed": true}, {"id": "6afcc204-afac-4903-864f-8e2f982c4cd3", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594246", "pickupAddress": "", "shipToAddress": "2730 Gateway Street, Springfield Walmart", "serviceDate": "2026-06-15", "amount": 613.0, "contact": "Crystle", "driver": "Jim 6/16", "notes": "", "billed": true}, {"id": "3ed21e6a-4a33-4e3b-8594-fe5ea8c8851a", "customerName": "Brothers Plumbing", "accountNumber": "08-91011", "poNumber": "25-0210", "pickupAddress": "33846 Looney Lane, Albany", "shipToAddress": "Slocum on Chad Drive", "serviceDate": "2026-06-12", "amount": 750.0, "contact": "Tim", "driver": "Jim 6/12", "notes": "", "billed": true}, {"id": "ccf062dc-a376-40fe-996a-0b95ec5c4edf", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594195", "pickupAddress": "", "shipToAddress": "2730 Gateway Street, Springfield Walmart", "serviceDate": "2026-06-11", "amount": 766.25, "contact": "", "driver": "Jim 6/11", "notes": "", "billed": true}, {"id": "3ee1e317-1a13-4da6-b4fc-fad325f89024", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594077", "pickupAddress": "497 Oakway Road, Eugene", "shipToAddress": "", "serviceDate": "2026-06-10", "amount": 152.5, "contact": "Bill", "driver": "Jim 6/10", "notes": "", "billed": true}, {"id": "19a7ea0a-135a-420b-917c-5280892560e0", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594076", "pickupAddress": "202 SW 1st Street, Corvallis", "shipToAddress": "", "serviceDate": "2026-06-10", "amount": 460.0, "contact": "Steve", "driver": "Jim 6/10", "notes": "", "billed": true}, {"id": "ac702423-1641-454d-965c-483e87def6b1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594078", "pickupAddress": "410 River Road, Eugene", "shipToAddress": "", "serviceDate": "2026-06-10", "amount": 151.25, "contact": "Scott", "driver": "Jim 6/10", "notes": "", "billed": true}, {"id": "b0b56511-e2f5-4364-8d7a-3c4991b3af9c", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "593625", "pickupAddress": "", "shipToAddress": "Greenhill and West 11th, Eugene", "serviceDate": "2026-06-01", "amount": 150.0, "contact": "Sam", "driver": "2026-06-01 00:00:00", "notes": "", "billed": true}, {"id": "fe6e9c27-ed93-43c0-b913-0c1299eb9c75", "customerName": "John Howard", "accountNumber": "check to Jim", "poNumber": "", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-29", "amount": 450.0, "contact": "John", "driver": "Jim 5/29", "notes": "", "billed": false}, {"id": "ee116686-a58f-40cb-9c7f-5c627b789d88", "customerName": "Andy McGee", "accountNumber": "cash to Jim", "poNumber": "", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-20", "amount": 300.0, "contact": "Andy", "driver": "Jim 5/20", "notes": "", "billed": true}, {"id": "e13354c9-cbb8-4c19-80a2-57c452dcd9e9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "593229", "pickupAddress": "", "shipToAddress": "195 North Bertelsen Road, Eugene", "serviceDate": "2026-05-19", "amount": 150.0, "contact": "Emma", "driver": "Jim 5/19", "notes": "", "billed": true}, {"id": "f6a92ec6-5448-4395-8f37-b5ab301295c9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "593199", "pickupAddress": "", "shipToAddress": "33846 Looney Lane, Tangent", "serviceDate": "2026-05-19", "amount": 359.5, "contact": "Bobby", "driver": "Jim 5/19", "notes": "", "billed": true}, {"id": "3e44aa47-beee-4778-bd64-4c8e832f2ef8", "customerName": "Camp Creek Electric", "accountNumber": "08-92038", "poNumber": "Pengra to River", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-18", "amount": 600.0, "contact": "Josh", "driver": "Jim 5/18", "notes": "", "billed": true}, {"id": "d26432f6-8f59-4c7e-ad56-4711f464777d", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "593086", "pickupAddress": "", "shipToAddress": "2375 Tremont Avenue, North Bend", "serviceDate": "2026-05-15", "amount": 1003.5, "contact": "Don", "driver": "Jim 5/15", "notes": "", "billed": true}, {"id": "dd37420d-3a0f-4c01-9ff6-ab2c199bc580", "customerName": "OEG", "accountNumber": "08-92304", "poNumber": "181171-FA9P-99-010", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-15", "amount": 450.0, "contact": "Bryce", "driver": "Brian 5/15", "notes": "", "billed": true}, {"id": "88ff5210-f5b8-4296-9e2e-250d3e7f16dd", "customerName": "Twin Rivers", "accountNumber": "08-90817", "poNumber": "175 Fairway Loop", "pickupAddress": "", "shipToAddress": "175 Fairway Loop, Eugene", "serviceDate": "2026-05-14", "amount": 300.0, "contact": "Chase", "driver": "Jim 5/14", "notes": "", "billed": true}, {"id": "6b294fbf-417c-4d60-9adf-dd121afdfe94", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592944", "pickupAddress": "", "shipToAddress": "2815 Chad Drive, Eugene", "serviceDate": "2026-05-12", "amount": 150.0, "contact": "Chase", "driver": "Jim 5/12", "notes": "", "billed": true}, {"id": "88a09a29-3734-4304-937e-4ffcc25f308d", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592909", "pickupAddress": "", "shipToAddress": "532 Northwest 3rd Street, Corvallis", "serviceDate": "2026-05-12", "amount": 450.0, "contact": "James or Gwen", "driver": "Jim 5/12", "notes": "", "billed": true}, {"id": "f3544b1e-e181-4dc3-96c4-cc27deb5d679", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592733", "pickupAddress": "", "shipToAddress": "251 Northeast Agness Avenue, Grants Pass", "serviceDate": "2026-05-11", "amount": 1342.0, "contact": "Justin", "driver": "Jim 5/11", "notes": "", "billed": true}, {"id": "5b0dd622-e76c-4450-ac08-fa10ebdc6a8b", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592590", "pickupAddress": "", "shipToAddress": "86631 Rose Hill Road, Florence", "serviceDate": "2026-05-08", "amount": 324.0, "contact": "Amy", "driver": "Jim 5/8", "notes": "", "billed": true}, {"id": "befc5d13-aae1-452e-b63d-ef8d634aa85c", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592732", "pickupAddress": "", "shipToAddress": "251 Northeast Agness Avenue, Grants Pass", "serviceDate": "2026-05-07", "amount": 1342.0, "contact": "Justin", "driver": "Jim 5/7", "notes": "", "billed": true}, {"id": "e7f0821e-68fa-46e3-bb64-9c5cbee334b0", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592684", "pickupAddress": "", "shipToAddress": "251 Northeast Agness Avenue, Grants Pass", "serviceDate": "2026-05-06", "amount": 1342.0, "contact": "Justin", "driver": "Jim 5/6", "notes": "", "billed": true}, {"id": "0651958b-1f29-4684-b215-689016e88992", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592633", "pickupAddress": "", "shipToAddress": "3300 Chad Drive, Eugene", "serviceDate": "2026-05-05", "amount": 150.0, "contact": "Josh", "driver": "Jim 5/5", "notes": "", "billed": true}, {"id": "c85987c0-330d-4154-82e4-f8f6eec400f1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592632", "pickupAddress": "", "shipToAddress": "1420 NW Shady Lane, Albany", "serviceDate": "2026-05-05", "amount": 324.0, "contact": "Todd", "driver": "Jim 5/5", "notes": "", "billed": true}, {"id": "88906842-e70e-4538-9f03-d9110c580f18", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592624", "pickupAddress": "", "shipToAddress": "55 Division Avenue, Eugene", "serviceDate": "2026-05-04", "amount": 490.0, "contact": "Rodger", "driver": "Jim 5/4", "notes": "", "billed": true}, {"id": "f822c5c3-4026-4a9b-893b-07a162e30893", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592589", "pickupAddress": "", "shipToAddress": "86631 Rose Hill Road, Florence", "serviceDate": "2026-05-04", "amount": 324.0, "contact": "Amy", "driver": "Jim 5/4", "notes": "", "billed": true}, {"id": "2607b427-4a92-4625-96fc-b6f1092e02f4", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592412", "pickupAddress": "", "shipToAddress": "55 Division Avenue, Eugene", "serviceDate": "2026-05-01", "amount": 367.5, "contact": "Rodger", "driver": "Jim 4/29", "notes": "", "billed": true}, {"id": "91d3577d-c7da-4114-ae9b-36c740c839a0", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591432", "pickupAddress": "", "shipToAddress": "Crater Lake", "serviceDate": "2026-04-28", "amount": 1300.0, "contact": "Arlis", "driver": "Jim 4/28", "notes": "", "billed": true}, {"id": "a4b55b02-4135-4657-a85e-473cc40cab39", "customerName": "Brothers Plumbing", "accountNumber": "08-91011", "poNumber": "25-0210", "pickupAddress": "575 West Oregon Avenue, Creswell", "shipToAddress": "3300 Chad Drive, Eugene", "serviceDate": "2026-04-27", "amount": 500.0, "contact": "Tim", "driver": "Jim 4/27", "notes": "", "billed": true}, {"id": "34bb55ea-6504-48c4-8503-c4ff1fac8296", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2520-5205", "pickupAddress": "650 30th Street, Springfield", "shipToAddress": "Emerald Valley Golf Course", "serviceDate": "2026-04-23", "amount": 350.0, "contact": "John", "driver": "Jim 4/23", "notes": "", "billed": true}, {"id": "903b804a-ed0b-4009-9e44-c914178d7c96", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591954", "pickupAddress": "1752 East 17th, Eugene", "shipToAddress": "", "serviceDate": "2026-04-20", "amount": 244.0, "contact": "Rob", "driver": "Jim 4/20", "notes": "", "billed": true}, {"id": "5329ec31-9391-44ce-a31c-367a547b7be9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591952", "pickupAddress": "", "shipToAddress": "1875 North 6th Street, Coos Bay", "serviceDate": "2026-04-17", "amount": 809.25, "contact": "Jahaziel", "driver": "Jim 4/17", "notes": "", "billed": true}, {"id": "f7b6a67c-b235-4ccb-9b65-32ba5985d364", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591750", "pickupAddress": "255 North Fred Haight Drive, Smith River", "shipToAddress": "", "serviceDate": "2026-04-16", "amount": 1556.0, "contact": "Kevin", "driver": "Jim 4/16", "notes": "", "billed": true}, {"id": "2a344f54-c5d5-474e-b7fb-b209bf3a5129", "customerName": "Food for Lane County", "accountNumber": "08-90602", "poNumber": "Emily 770 Flamingo", "pickupAddress": "770 Flamingo, Eugene", "shipToAddress": "1465 Coburg Road, Eugene", "serviceDate": "2026-04-14", "amount": 350.0, "contact": "Emily", "driver": "Jim 4/14", "notes": "", "billed": true}, {"id": "b200f167-511c-4356-8be4-971c73a82e0b", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2529-5214", "pickupAddress": "Rosboro Springfield", "shipToAddress": "3300 Chad Drive, Eugene", "serviceDate": "2026-04-14", "amount": 450.0, "contact": "John", "driver": "Jim 4/14", "notes": "", "billed": true}, {"id": "9544d0b4-7a95-4395-92d7-bc61a322749d", "customerName": "Mercury Metal", "accountNumber": "08-95325", "poNumber": "", "pickupAddress": "960 SE Monmouth Cutoff Road, Dallas", "shipToAddress": "2323 Cross Street, Eugene", "serviceDate": "2026-04-13", "amount": 1400.0, "contact": "Ryan", "driver": "Jim 4/13", "notes": "", "billed": true}, {"id": "142a050c-02e6-45d6-9e3f-0eaba908eef1", "customerName": "Lanz Cabinets", "accountNumber": "ran card", "poNumber": "", "pickupAddress": "91186 North Coburg Industrial Way, Coburg", "shipToAddress": "60 North Danebo, Eugene", "serviceDate": "2026-04-10", "amount": 300.0, "contact": "Brent", "driver": "Jim 4/10", "notes": "", "billed": true}, {"id": "5b0d4903-2366-490f-b649-5b20467a78af", "customerName": "Umpqua Roofing", "accountNumber": "08-0095972", "poNumber": "Intel Orange Lot", "pickupAddress": "7330 NE Ronler Drive, Hillsboro", "shipToAddress": "Danebo shop", "serviceDate": "2026-04-09", "amount": 1800.0, "contact": "James", "driver": "Jim 4/9", "notes": "", "billed": true}, {"id": "34eda001-0d39-4d4f-8527-618ff9e719b5", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591623", "pickupAddress": "33846 Looney Lane, Tangent", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-04-08", "amount": 309.5, "contact": "Bobby", "driver": "Jim 4/8", "notes": "", "billed": true}, {"id": "5d4f4c9a-ba75-4776-a697-5031ef518cc3", "customerName": "Harvey and Price", "accountNumber": "08-91746", "poNumber": "2530125", "pickupAddress": "2015 Nugget Way, Eugene", "shipToAddress": "3130 Chad Drive, Eugene", "serviceDate": "2026-04-06", "amount": 350.0, "contact": "Josh", "driver": "Jim 4/6", "notes": "", "billed": true}, {"id": "033a50f5-ffbd-48b8-8657-902f7920124e", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591356", "pickupAddress": "1100 Airport Lane, North Bend", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-04-02", "amount": 1004.25, "contact": "Jake", "driver": "Jim 4/2", "notes": "", "billed": true}, {"id": "030651e0-4170-490f-a835-ce3dd18fc5ee", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591354", "pickupAddress": "", "shipToAddress": "Florence", "serviceDate": "2026-04-01", "amount": 465.0, "contact": "", "driver": "Jim 4/1", "notes": "", "billed": true}, {"id": "145809a6-3418-4999-beb6-e787a29f1bed", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591287", "pickupAddress": "Mobile Mod yard", "shipToAddress": "2121 Madrona Street, North Bend", "serviceDate": "2026-03-31", "amount": 1004.25, "contact": "Troy", "driver": "Jim 3/31", "notes": "", "billed": true}, {"id": "5a4b1c72-449e-41cf-a809-3db6a99554f1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591240", "pickupAddress": "Mobile Mod yard", "shipToAddress": "2121 Madrona Street, North Bend", "serviceDate": "2026-03-30", "amount": 1004.25, "contact": "Troy", "driver": "Jim 3/30", "notes": "", "billed": true}, {"id": "551059f3-d658-4b34-b96f-56510700cee8", "customerName": "Ethan Penfold", "accountNumber": "cash to Jim", "poNumber": "", "pickupAddress": "84904 Laughlin", "shipToAddress": "3580 West 1st", "serviceDate": "2026-03-27", "amount": 450.0, "contact": "Ethan", "driver": "Jim 3/27", "notes": "", "billed": true}, {"id": "06e8afdf-2dbe-4bfa-9e67-dc27e7aa56af", "customerName": "Edge Construction", "accountNumber": "08-95130", "poNumber": "Warm Springs", "pickupAddress": "Bertelsen shop", "shipToAddress": "50 Chukar Road, Warm Springs", "serviceDate": "2026-03-25", "amount": 2400.0, "contact": "Troy", "driver": "Jim 3/25", "notes": "", "billed": true}, {"id": "878e1dbe-245f-4dc2-aa9b-0acbf1b1a2d5", "customerName": "Ralph Goodner", "accountNumber": "ran card", "poNumber": "", "pickupAddress": "24589 Warthen Road, Elmira", "shipToAddress": "", "serviceDate": "2026-03-24", "amount": 450.0, "contact": "Ralph", "driver": "Jim 3/24", "notes": "", "billed": true}, {"id": "e749e783-a9e4-4ca6-bae2-1d66da5c8842", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590936", "pickupAddress": "", "shipToAddress": "95224 Lillian Slough Lane, Coos Bay", "serviceDate": "2026-03-23", "amount": 780.0, "contact": "Nate", "driver": "Jim 3/23", "notes": "", "billed": true}, {"id": "bc06be1a-8610-4cee-a49a-bdd1be08c532", "customerName": "Austin Larsen", "accountNumber": "check to Jim", "poNumber": "", "pickupAddress": "86350 Bailey Hill Road, Eugene", "shipToAddress": "84674 Cloverdale Road, Creswell", "serviceDate": "2026-03-20", "amount": 750.0, "contact": "Austin", "driver": "Jim 3/20", "notes": "", "billed": true}, {"id": "163b9728-fd00-4688-bbd3-42c285b1d502", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590920", "pickupAddress": "", "shipToAddress": "5801 NW Way, Redmond", "serviceDate": "2026-03-20", "amount": 780.0, "contact": "Laura", "driver": "Jim 3/20", "notes": "", "billed": true}, {"id": "aea09723-dab9-434c-90ac-a15aa795efc5", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590933", "pickupAddress": "", "shipToAddress": "2400 Lincoln Street, Eugene", "serviceDate": "2026-03-19", "amount": 120.0, "contact": "Shane", "driver": "Jim 3/19", "notes": "", "billed": true}, {"id": "914660d7-ff68-4eb4-9b2f-e30e75c2ad12", "customerName": "Edge Construction", "accountNumber": "08-95130", "poNumber": "Vancouver Peace Health", "pickupAddress": "400 NE Mothers Joseph Place, Vancouver", "shipToAddress": "Bertelsen shop", "serviceDate": "2026-03-17", "amount": 1800.0, "contact": "Troy", "driver": "Jim 3/17", "notes": "", "billed": true}, {"id": "a4dd8095-acb7-4845-8df7-ff50935850d0", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2532-5188", "pickupAddress": "650 30th Street, Eugene", "shipToAddress": "175 Fairway Loop, Eugene", "serviceDate": "2026-03-16", "amount": 600.0, "contact": "John", "driver": "Jim 3/16", "notes": "", "billed": true}, {"id": "10aaa602-84d3-4957-b408-58a065bef019", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590734", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-03-13", "amount": 240.0, "contact": "Laura", "driver": "Jim 3/13", "notes": "", "billed": true}, {"id": "d7fc10e7-6c37-4374-a0d5-d7d35f87239f", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590486", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-03-09", "amount": 120.0, "contact": "Danny", "driver": "Jim 3/9", "notes": "", "billed": true}, {"id": "5cff2152-23a9-4f5c-ba9a-739f965e0de7", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590485", "pickupAddress": "Mobile Mod yard", "shipToAddress": "2700 NW Stewart Parkway, Roseburg", "serviceDate": "2026-03-09", "amount": 480.0, "contact": "Johnny", "driver": "Jim 3/9", "notes": "", "billed": true}, {"id": "4250c07d-57a8-4bab-8953-cbfadfca0b87", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590286", "pickupAddress": "5801 Old Salem Road Northeast, Albany", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-03-03", "amount": 240.0, "contact": "Darin", "driver": "Jim 3/3", "notes": "", "billed": true}, {"id": "e27a0a7c-7303-4295-9b51-243331dbf58e", "customerName": "Kevin Boris", "accountNumber": "cash", "poNumber": "", "pickupAddress": "", "shipToAddress": "24502 Bolton Hill Road, Veneta", "serviceDate": "2026-03-02", "amount": 600.0, "contact": "Kevin", "driver": "Jim 3/2", "notes": "", "billed": true}, {"id": "699850ea-8099-4979-b24c-6a5d8117c621", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "589134", "pickupAddress": "Mobile Mod yard", "shipToAddress": "700 Old Salem Road NE, Albany", "serviceDate": "2026-02-02", "amount": 240.0, "contact": "Jeff", "driver": "Jim 2/2", "notes": "", "billed": true}, {"id": "d5dfdc35-5b97-401e-8846-5b068f39a58f", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "589133", "pickupAddress": "Mobile Mod yard", "shipToAddress": "170 South Garden Way, Eugene", "serviceDate": "2026-02-03", "amount": 120.0, "contact": "Josh", "driver": "Jim 2/3", "notes": "", "billed": true}, {"id": "5c4c5ffd-49fd-4e72-bea1-965db5992ad4", "customerName": "Harvey and Price", "accountNumber": "08-91746", "poNumber": "2570275", "pickupAddress": "2015 Nugget Way, Eugene", "shipToAddress": "2121 Madrona Street, North Bend", "serviceDate": "2026-02-10", "amount": 1500.0, "contact": "Eric", "driver": "Brian 2/10", "notes": "40 ft", "billed": true}, {"id": "cb63b9c8-0141-4fab-8bad-50c74f78491c", "customerName": "Brothers Plumbing", "accountNumber": "08-91011", "poNumber": "25-0120", "pickupAddress": "575 West Oregon Avenue, Creswell", "shipToAddress": "55 Coburg Road, Eugene", "serviceDate": "2026-02-10", "amount": 500.0, "contact": "Tm", "driver": "Brian 2/10", "notes": "20 ft", "billed": true}, {"id": "a8b1714f-cbf9-4948-8c88-4d803ae4d550", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2529-5198", "pickupAddress": "650 30th Street, Springfield", "shipToAddress": "3300 Chad Drive, Eugene", "serviceDate": "2026-02-23", "amount": 300.0, "contact": "John", "driver": "Jim 2/23", "notes": "20 ft", "billed": true}, {"id": "ca8f1f1f-5fdd-4d2d-af67-81f219cbdd59", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "589739", "pickupAddress": "2727 Leo Harris Parkway, Eugene", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-02-25", "amount": 240.0, "contact": "Bob", "driver": "Brian 2/25", "notes": "20ft", "billed": true}, {"id": "ad55603a-daf2-4f7b-8380-32d0a33b03e8", "customerName": "Brothers Plumbing", "accountNumber": "08-91011", "poNumber": "", "pickupAddress": "1520 West 13th Avenue, Eugene", "shipToAddress": "575 West Oregon Avenue, Creswell", "serviceDate": "2026-01-05", "amount": 350.0, "contact": "Frank", "driver": "Jim 1/6", "notes": "40 ft", "billed": true}, {"id": "1113ae70-b221-4f28-89c3-5559c5e4d21d", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2401-5509", "pickupAddress": "1520 West 13th Avenue, Eugene", "shipToAddress": "650 30th Street, Springfield", "serviceDate": "2026-01-06", "amount": 350.0, "contact": "John", "driver": "Jim 1/6", "notes": "20 ft", "billed": true}, {"id": "a42deab2-a240-40c2-91c1-dfecbf7568e4", "customerName": "Heinz Selig", "accountNumber": "08-95474", "poNumber": "", "pickupAddress": "645 Powers Street, Eugene", "shipToAddress": "23846 Briggs Hill Road, Eugene", "serviceDate": "2026-01-08", "amount": 750.0, "contact": "Heinz", "driver": "Jim 1/8", "notes": "two 40 ft", "billed": true}, {"id": "3e69da8d-b166-47c1-bf29-e5c7ba50b1e7", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588201", "pickupAddress": "Mobile Mod yard", "shipToAddress": "82710 Maple Street, Dunes City", "serviceDate": "2026-01-09", "amount": 360.0, "contact": "Daphne", "driver": "Jim 1/9", "notes": "20 ft", "billed": true}, {"id": "960e5b55-dfcc-4600-a0de-4a23e39eb623", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2401-5509", "pickupAddress": "1520 West 13th Avenue, Eugene", "shipToAddress": "650 30th Street, Springfield", "serviceDate": "2026-01-12", "amount": 350.0, "contact": "John", "driver": "Jim 1/12", "notes": "20 ft", "billed": true}, {"id": "df210c87-fbf1-4667-8b24-f756aeb79259", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2026-5186", "pickupAddress": "6th street, Eugene", "shipToAddress": "650 30th Street, Springfield", "serviceDate": null, "amount": 1800.0, "contact": "John", "driver": "Jim 1/12-1/14", "notes": "three 40 ft and three 20 ft", "billed": true}, {"id": "0f3f3694-b1ef-412d-8702-2ca358d38501", "customerName": "Matthew Woodward", "accountNumber": "ran card", "poNumber": "", "pickupAddress": "Thurston", "shipToAddress": "Harrisburg", "serviceDate": "2026-01-13", "amount": 600.0, "contact": "Matthew", "driver": "Jim 1/13", "notes": "40 ft", "billed": true}, {"id": "be1c33ae-c580-4a69-a392-f8da1728b89a", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588134", "pickupAddress": "Mobile Mod yard", "shipToAddress": "1518 NW Lower Bridge Way, Terrebonne", "serviceDate": "2026-01-13", "amount": 780.0, "contact": "Cera", "driver": "Brian 1/13", "notes": "40ft", "billed": true}, {"id": "819c0992-89de-410e-9f8a-5dbf01d3587f", "customerName": "Richard Baldwin", "accountNumber": "ran card", "poNumber": "", "pickupAddress": "4055 Henderer Road, Elkton", "shipToAddress": "7693 Old Hwy 99 N, Roseburg", "serviceDate": "2026-01-16", "amount": 1500.0, "contact": "Jon Berk", "driver": "Jim 1/16", "notes": "two 40 ft", "billed": true}, {"id": "7f03b395-e114-474f-ae67-c8a781408c73", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588668", "pickupAddress": "Mobile Mod yard", "shipToAddress": "1063 Valley River Way, Eugene", "serviceDate": "2026-01-19", "amount": 120.0, "contact": "Danny", "driver": "Jim 1/19", "notes": "20 ft", "billed": true}, {"id": "bb807b8f-1254-4847-9fd9-0a01e48b627b", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588740", "pickupAddress": "Mobile Mod yard", "shipToAddress": "3859 Goldfish Farm Road SE, Albany", "serviceDate": "2026-01-22", "amount": 240.0, "contact": "Russ", "driver": "Jim 1/22", "notes": "20 ft", "billed": true}, {"id": "bbad8560-682e-483a-90ed-64b3d5507352", "customerName": "Dust Busters", "accountNumber": "ran card", "poNumber": "James 1/23/26", "pickupAddress": "1551 S Bertelsen", "shipToAddress": "89779 Monteith", "serviceDate": "2026-01-23", "amount": 1200.0, "contact": "James", "driver": "Jim 1/23", "notes": "four 40 ft", "billed": true}, {"id": "ec892041-98b5-4485-b343-e79835bedd82", "customerName": "NP Construction", "accountNumber": "08-95276", "poNumber": "Daniel 1/23/26", "pickupAddress": "805 Oak Street, Springfield", "shipToAddress": "29417 Willow Creek Road, Eugene", "serviceDate": "2026-01-23", "amount": 300.0, "contact": "Daniel", "driver": "Jim 1/23", "notes": "20 ft", "billed": true}, {"id": "f4907cbc-4a21-4f23-bfeb-b92829c0adb5", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588889", "pickupAddress": "85830 Pine Grove Road, Eugene", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-01-27", "amount": 120.0, "contact": "Danielle", "driver": "Jim 1/27", "notes": "40 ft", "billed": true}];
 
   /* ------------------------- state ------------------------- */
-  var state = { containers: [], customers: [], rentals: [], invoices: [], collections: [], hauls: [], salescontainers: [], quotes: [] };
+  var state = { containers: [], customers: [], rentals: [], invoices: [], collections: [], hauls: [], salescontainers: [], quotes: [], dispatchcards: [], profiles: [] };
   var ui = {
     tab: "dashboard",
     fleetQ: "", fleetFilter: "All", fleetType: "",
@@ -200,7 +232,8 @@
     collQ: "", collStageFilter: "open",
     haulQ: "", haulFilter: "all",
     salesQ: "", salesFilter: "all",
-    quoteQ: "", quoteCatFilter: "all", quoteStatusFilter: "all"
+    quoteQ: "", quoteCatFilter: "all", quoteStatusFilter: "all",
+    dispatchViewMode: "month", dispatchRefDate: today(), dispatchDriverFilter: "all"
   };
 
   /* ------------------------- helpers ------------------------- */
@@ -220,6 +253,67 @@
     var p = ym.split("-"); var y = Number(p[0]), m = Number(p[1]) + 1;
     if (m > 12) { m = 1; y += 1; }
     return y + "-" + String(m).padStart(2, "0");
+  }
+  function formatDateDisplay(iso) {
+    if (!iso) return "";
+    var p = parts(iso);
+    return new Date(p.y, p.m - 1, p.d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+  var CAL_VIEW_MONTH = {};
+  function calendarMonthLabel(ym) {
+    var p = ym.split("-");
+    return new Date(Number(p[0]), Number(p[1]) - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+  }
+  function renderDateCalendar(fieldPrefix) {
+    var panel = el(fieldPrefix + "-cal");
+    if (!panel) return;
+    var selectedIso = el(fieldPrefix).value || "";
+    if (!CAL_VIEW_MONTH[fieldPrefix]) CAL_VIEW_MONTH[fieldPrefix] = selectedIso ? monthKey(selectedIso) : nowMonth();
+    var ym = CAL_VIEW_MONTH[fieldPrefix];
+    var p = ym.split("-"); var y = Number(p[0]), m = Number(p[1]);
+    var firstDow = new Date(y, m - 1, 1).getDay();
+    var dim = daysInMonth(y, m);
+    var cells = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(function (d) { return '<div class="cal-dow">' + d + "</div>"; });
+    for (var i = 0; i < firstDow; i++) cells.push("<div></div>");
+    for (var d = 1; d <= dim; d++) {
+      var iso = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+      var cls = "cal-day" + (iso === selectedIso ? " cal-sel" : "") + (iso === today() ? " cal-today" : "");
+      cells.push('<div class="' + cls + '" data-act="quote-date-pick" data-field="' + fieldPrefix + '" data-date="' + iso + '">' + d + "</div>");
+    }
+    panel.innerHTML =
+      '<div class="cal-head"><button type="button" class="btn sm ghost" data-act="quote-date-prevmonth" data-field="' + fieldPrefix + '">&lsaquo;</button>' +
+      "<span>" + calendarMonthLabel(ym) + "</span>" +
+      '<button type="button" class="btn sm ghost" data-act="quote-date-nextmonth" data-field="' + fieldPrefix + '">&rsaquo;</button></div>' +
+      '<div class="cal-grid">' + cells.join("") + "</div>" +
+      '<div class="cal-foot"><button type="button" class="btn sm ghost" data-act="quote-date-clear" data-field="' + fieldPrefix + '">Clear</button>' +
+      '<button type="button" class="btn sm ghost" data-act="quote-date-today" data-field="' + fieldPrefix + '">Today</button></div>';
+    panel.style.display = "block";
+  }
+  function quoteDateToggle(fieldPrefix) {
+    var panel = el(fieldPrefix + "-cal");
+    if (!panel) return;
+    if (panel.style.display === "block") { panel.style.display = "none"; return; }
+    delete CAL_VIEW_MONTH[fieldPrefix];
+    renderDateCalendar(fieldPrefix);
+  }
+  function quoteDatePick(fieldPrefix, iso) {
+    el(fieldPrefix).value = iso;
+    var disp = el(fieldPrefix + "-display");
+    if (disp) disp.value = formatDateDisplay(iso);
+    el(fieldPrefix + "-cal").style.display = "none";
+  }
+  function quoteDateShiftMonth(fieldPrefix, dir) {
+    CAL_VIEW_MONTH[fieldPrefix] = dir > 0 ? nextMonthKey(CAL_VIEW_MONTH[fieldPrefix]) : prevMonthKey(CAL_VIEW_MONTH[fieldPrefix]);
+    renderDateCalendar(fieldPrefix);
+  }
+  function quoteDateClear(fieldPrefix) {
+    el(fieldPrefix).value = "";
+    var disp = el(fieldPrefix + "-display");
+    if (disp) disp.value = "";
+    el(fieldPrefix + "-cal").style.display = "none";
+  }
+  function quoteDateToday(fieldPrefix) {
+    quoteDatePick(fieldPrefix, today());
   }
   function money(n, dp) {
     dp = dp == null ? 2 : dp;
@@ -281,7 +375,7 @@
     Object.keys(row).forEach(function (k) { out[toCamel(k)] = row[k]; });
     return out;
   }
-  var TABLE_KEYS = { containers: "id", customers: "id", rentals: "id", invoices: "id", collections: "account", hauls: "id", salescontainers: "id", quotes: "id" };
+  var TABLE_KEYS = { containers: "id", customers: "id", rentals: "id", invoices: "id", collections: "account", hauls: "id", salescontainers: "id", quotes: "id", dispatchcards: "id", profiles: "email" };
 
   async function syncTable(table, rows) {
     var idField = TABLE_KEYS[table];
@@ -302,6 +396,7 @@
 
   async function persist() {
     if (!sb) return;
+    if (AUTH.role === "driver") return; // drivers have no write actions in this stage, and RLS would reject most of these anyway
     try {
       await Promise.all([
         syncTable("containers", state.containers),
@@ -311,7 +406,9 @@
         syncTable("collections", state.collections),
         syncTable("hauls", state.hauls),
         syncTable("salescontainers", state.salescontainers),
-        syncTable("quotes", state.quotes)
+        syncTable("quotes", state.quotes),
+        syncTable("dispatchcards", state.dispatchcards),
+        syncTable("profiles", state.profiles)
       ]);
     } catch (e) {
       flash("Sync error — your change may not have saved: " + (e.message || e));
@@ -320,6 +417,21 @@
 
   async function loadAllFromSupabase() {
     try {
+      var profRes = await sb.from("profiles").select("*");
+      if (profRes.error) throw profRes.error;
+      state.profiles = profRes.data.map(rowFromDb);
+      applyMyProfile();
+
+      if (AUTH.role === "driver") {
+        // Locked down by RLS to just today's released cards for this driver — no point fetching the rest.
+        var dcRes = await sb.from("dispatchcards").select("*");
+        state.dispatchcards = dcRes.error ? [] : dcRes.data.map(rowFromDb);
+        state.containers = []; state.customers = []; state.rentals = []; state.invoices = [];
+        state.collections = []; state.hauls = []; state.salescontainers = []; state.quotes = [];
+        render();
+        return;
+      }
+
       var results = await Promise.all([
         sb.from("containers").select("*"),
         sb.from("customers").select("*"),
@@ -328,7 +440,8 @@
         sb.from("collections").select("*"),
         sb.from("hauls").select("*"),
         sb.from("salescontainers").select("*"),
-        sb.from("quotes").select("*")
+        sb.from("quotes").select("*"),
+        sb.from("dispatchcards").select("*")
       ]);
       for (var i = 0; i < results.length; i++) if (results[i].error) throw results[i].error;
       state.containers = results[0].data.map(rowFromDb);
@@ -339,6 +452,7 @@
       state.hauls = results[5].data.map(rowFromDb);
       state.salescontainers = results[6].data.map(rowFromDb);
       state.quotes = results[7].data.map(rowFromDb);
+      state.dispatchcards = results[8].data.map(rowFromDb);
       render();
     } catch (e) {
       flash("Couldn't load data from Supabase: " + (e.message || e));
@@ -353,16 +467,23 @@
       clearTimeout(refreshTimers[table]);
       refreshTimers[table] = setTimeout(function () { refetchTable(table); }, 500);
     }
-    realtimeChannel = sb.channel("wms-tracker-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "containers" }, function () { refresh("containers"); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, function () { refresh("customers"); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "rentals" }, function () { refresh("rentals"); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, function () { refresh("invoices"); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "collections" }, function () { refresh("collections"); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "hauls" }, function () { refresh("hauls"); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "salescontainers" }, function () { refresh("salescontainers"); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "quotes" }, function () { refresh("quotes"); })
-      .subscribe();
+    var channel = sb.channel("wms-tracker-changes");
+    if (AUTH.role === "driver") {
+      channel.on("postgres_changes", { event: "*", schema: "public", table: "dispatchcards" }, function () { refresh("dispatchcards"); });
+    } else {
+      channel
+        .on("postgres_changes", { event: "*", schema: "public", table: "containers" }, function () { refresh("containers"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, function () { refresh("customers"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "rentals" }, function () { refresh("rentals"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, function () { refresh("invoices"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "collections" }, function () { refresh("collections"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "hauls" }, function () { refresh("hauls"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "salescontainers" }, function () { refresh("salescontainers"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "quotes" }, function () { refresh("quotes"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "dispatchcards" }, function () { refresh("dispatchcards"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, function () { refresh("profiles"); });
+    }
+    realtimeChannel = channel.subscribe();
   }
   async function refetchTable(table) {
     var res = await sb.from(table).select("*");
@@ -370,22 +491,32 @@
     var mapped = res.data.map(rowFromDb);
     if (table === "collections") mapped = mapped.map(migrateCollectionRecord);
     state[table] = mapped;
+    if (table === "profiles") applyMyProfile();
     render();
   }
 
   /* ------------------------- auth ------------------------- */
-  var AUTH = { state: "checking", email: null };
+  var AUTH = { state: "checking", email: null, role: "staff", driverName: null };
+
+  function applyMyProfile() {
+    var email = (AUTH.email || "").toLowerCase();
+    var mine = state.profiles.find(function (p) { return (p.email || "").toLowerCase() === email; });
+    AUTH.role = mine ? (mine.role || "staff") : "staff";
+    AUTH.driverName = mine ? (mine.driverName || null) : null;
+    renderAuthBar();
+  }
 
   function renderAuthBar() {
     var bar = el("savenote");
     if (AUTH.state === "logged-in") {
-      bar.innerHTML = "Signed in as " + esc(AUTH.email) + "&nbsp;&nbsp;·&nbsp;&nbsp;" +
+      var roleTag = AUTH.role === "driver" ? " — driver" + (AUTH.driverName ? " (" + esc(AUTH.driverName) + ")" : "") : "";
+      bar.innerHTML = "Signed in as " + esc(AUTH.email) + roleTag + "&nbsp;&nbsp;·&nbsp;&nbsp;" +
         '<button class="btn sm ghost" style="color:#fff;border-color:rgba(255,255,255,.45)" data-act="auth-signout">Sign out</button>';
     } else {
       bar.textContent = AUTH.state === "not-configured" ? "Supabase isn't connected yet — see instructions below." : "";
     }
     var tabs = el("tabs");
-    if (tabs) tabs.style.display = AUTH.state === "logged-in" ? "flex" : "none";
+    if (tabs) tabs.style.display = (AUTH.state === "logged-in" && AUTH.role !== "driver") ? "flex" : "none";
   }
 
   function renderSetupScreen() {
@@ -457,7 +588,7 @@
   }
   function isOverdue(inv) { return inv.status === "unpaid" && inv.dueDate < today(); }
   function badge(status, overdue) {
-    var map = { Available: "b-ok", Rented: "b-rent", Maintenance: "b-warn", "Out of Service": "b-off", Paid: "b-ok", Unpaid: "b-warn", Credit: "b-credit", Yes: "b-ok", Pending: "b-warn" };
+    var map = { Available: "b-ok", Rented: "b-rent", Maintenance: "b-warn", "Out of Service": "b-off", Paid: "b-ok", Unpaid: "b-warn", Credit: "b-credit", Yes: "b-ok", Pending: "b-warn", Draft: "b-warn", Driver: "b-rent", Staff: "b-ok" };
     var cls = overdue ? "b-danger" : (map[status] || "b-off");
     return '<span class="badge ' + cls + '">' + (overdue ? "Overdue" : esc(status)) + "</span>";
   }
@@ -531,10 +662,10 @@
 
   function resetAll() {
     var msg = sb
-      ? "Erase all containers, customers, rentals, invoices, collections, contract haul, sales inventory, and quote data for the WHOLE TEAM in the shared database? This can't be undone."
-      : "Erase all containers, customers, rentals, invoices, collections, contract haul, sales inventory, and quote data? This can't be undone.";
+      ? "Erase all containers, customers, rentals, invoices, collections, contract haul, sales inventory, quote, and dispatch data for the WHOLE TEAM in the shared database? This can't be undone. (Driver/staff access records are kept.)"
+      : "Erase all containers, customers, rentals, invoices, collections, contract haul, sales inventory, quote, and dispatch data? This can't be undone.";
     if (!confirm(msg)) return;
-    state = { containers: [], customers: [], rentals: [], invoices: [], collections: [], hauls: [], salescontainers: [], quotes: [] };
+    state = { containers: [], customers: [], rentals: [], invoices: [], collections: [], hauls: [], salescontainers: [], quotes: [], dispatchcards: [], profiles: state.profiles };
     flash("All data cleared");
     commit();
   }
@@ -553,6 +684,11 @@
      RENDER
   ===================================================================== */
   function render() {
+    if (AUTH.state === "logged-in" && AUTH.role === "driver") {
+      renderAuthBar();
+      renderDriverView();
+      return;
+    }
     checkSalesHolds();
     Array.prototype.forEach.call(document.querySelectorAll("#tabs button"), function (b) {
       b.classList.toggle("on", b.getAttribute("data-tab") === ui.tab);
@@ -581,6 +717,8 @@
     else if (ui.tab === "haul") renderHaul(v);
     else if (ui.tab === "sales-inv") renderSalesInv(v);
     else if (ui.tab === "quotes") renderQuotes(v);
+    else if (ui.tab === "dispatch") renderDispatch(v);
+    else if (ui.tab === "driver-access") renderDriverAccess(v);
 
     v.insertAdjacentHTML("beforeend",
       '<div style="margin-top:28px;display:flex;justify-content:flex-end">' +
@@ -704,7 +842,7 @@
       (onRent ? '<div class="muted" style="font-size:12px">Renaming the ID here will automatically update its active rental and invoice history to match.</div>' : "") +
       '<div class="row2"><div class="fld"><label>Type</label><select class="in" id="f-type">' + opt(TYPES, f.type) + "</select></div>" +
       '<div class="fld"><label>Grade</label><select class="in" id="f-grade">' + opt(GRADES, f.grade) + "</select></div></div>" +
-      '<div class="fld"><label>Location / ship-to</label><input class="in" id="f-loc" placeholder="Yard A — Eugene" value="' + esc(f.location) + '"></div>' +
+      '<div class="fld"><label>Location / ship-to</label><div class="combo-wrap"><input class="in addr-input" id="f-loc" placeholder="Yard A — Eugene" value="' + esc(f.location) + '"><div class="combo-list" id="f-loc-list"></div></div><div class="subline" id="f-loc-hint" style="color:var(--warn)"></div></div>' +
       statusField + rentalField +
       '<div class="fld"><label>Notes</label><textarea class="in" id="f-notes" rows="2">' + esc(f.notes || "") + "</textarea></div>",
       '<button class="btn" data-act="modal-close">Cancel</button>' +
@@ -830,7 +968,7 @@
       '<div class="row2"><div class="fld"><label>Contact person</label><input class="in" id="c-contact" value="' + esc(c.contact) + '"></div>' +
       '<div class="fld"><label>Phone</label><input class="in" id="c-phone" value="' + esc(c.phone) + '"></div></div>' +
       '<div class="fld"><label>Email</label><input class="in" id="c-email" value="' + esc(c.email) + '"></div>' +
-      '<div class="fld"><label>Billing address</label><input class="in" id="c-baddr" value="' + esc(c.billingAddress) + '"></div>' +
+      '<div class="fld"><label>Billing address</label><div class="combo-wrap"><input class="in addr-input" id="c-baddr" value="' + esc(c.billingAddress) + '"><div class="combo-list" id="c-baddr-list"></div></div><div class="subline" id="c-baddr-hint" style="color:var(--warn)"></div></div>' +
       '<div class="fld"><label>Notes</label><textarea class="in" id="c-notes" rows="2">' + esc(c.notes) + "</textarea></div>",
       '<button class="btn" data-act="modal-close">Cancel</button>' +
       '<button class="btn primary" data-act="cust-save" data-id="' + esc(editing ? editing.id : "") + '">Save</button>');
@@ -903,6 +1041,13 @@
       var endCell = r.endDate
         ? '<input class="in mono rental-end-input" type="date" data-id="' + esc(r.id) + '" value="' + esc(r.endDate) + '" style="min-width:150px">'
         : '<span class="badge b-rent">active</span>';
+      var returnCard = rentalScheduledReturnCard(r.id);
+      var returnAction = "";
+      if (!r.endDate) {
+        returnAction = returnCard
+          ? '<span class="badge b-danger">Return scheduled' + (returnCard.scheduledDate ? " " + returnCard.scheduledDate : "") + "</span>"
+          : '<button class="btn sm" data-act="rental-schedule-return" data-id="' + esc(r.id) + '">Schedule return</button>';
+      }
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
         "<td>" + esc(customerName(r.customerId)) +
@@ -913,7 +1058,7 @@
         '<td class="num">' + endCell + "</td>" +
         "<td>" + (recurBadge || "—") + "</td>" +
         '<td class="right nowrap">' +
-        (!r.endDate ? '<button class="btn sm" data-act="rental-end" data-id="' + esc(r.id) + '">End rental</button>' : "") +
+        returnAction +
         "</td></tr>";
     }).join("");
     if (!shown.length) rows = '<tr><td colspan="8" class="empty-row">No ' + ui.rentalView + " rentals match.</td></tr>";
@@ -983,6 +1128,39 @@
     el("r-cont-list").innerHTML = html || '<div class="combo-empty">No matching available containers.</div>';
     el("r-cont-list").style.display = "block";
   }
+  function collectKnownAddresses() {
+    var set = {};
+    function add(a) { if (a && a.trim()) set[a.trim()] = true; }
+    state.customers.forEach(function (c) { add(c.billingAddress); });
+    state.rentals.forEach(function (r) { add(r.shipToAddress); });
+    state.hauls.forEach(function (h) { add(h.pickupAddress); add(h.shipToAddress); });
+    state.quotes.forEach(function (q) { add(q.shipToAddress); add(q.pickupAddress); });
+    state.containers.forEach(function (c) { add(c.location); });
+    return Object.keys(set).sort();
+  }
+  function looksLikeAddress(str) {
+    var s = (str || "").trim();
+    if (!s) return true; // empty is fine — nothing to flag until they type
+    return s.length >= 8 && /\d/.test(s);
+  }
+  function renderAddressCombo(fieldId, term) {
+    var listEl = el(fieldId + "-list");
+    if (!listEl) return;
+    var all = collectKnownAddresses();
+    var t = term.trim().toLowerCase();
+    var matches = (t ? all.filter(function (a) { return a.toLowerCase().indexOf(t) !== -1; }) : all).slice(0, 20);
+    listEl.innerHTML = matches.length
+      ? matches.map(function (a) { return '<div class="combo-item" data-act="address-pick" data-field="' + fieldId + '" data-value="' + esc(a) + '">' + esc(a) + "</div>"; }).join("")
+      : '<div class="combo-empty">No matching addresses on file yet — keep typing to enter a new one.</div>';
+    listEl.style.display = "block";
+    updateAddressHint(fieldId);
+  }
+  function updateAddressHint(fieldId) {
+    var hintEl = el(fieldId + "-hint");
+    var input = el(fieldId);
+    if (!hintEl || !input) return;
+    hintEl.textContent = looksLikeAddress(input.value) ? "" : "Looks incomplete — check for a street number and street name.";
+  }
   function comboCustomerItems(term) {
     var t = term.trim().toLowerCase();
     return state.customers.filter(function (c) {
@@ -1045,21 +1223,38 @@
     commit();
   }
 
-  function rentalEndModal(id) {
+  function rentalScheduledReturnCard(rentalId) {
+    return state.dispatchcards.find(function (c) { return c.sourceType === "rental" && c.sourceId === rentalId && c.category === "Rental Return"; }) || null;
+  }
+  function rentalScheduleReturnModal(id) {
     var r = rentalById(id);
     if (!r) return;
-    openModal("End rental",
-      "<div>End the rental for <span class=\"cid\">" + esc(containerLabel(r.containerId)) + "</span> with " + esc(customerName(r.customerId)) + ". The container returns to available.</div>" +
-      '<div class="fld"><label>End date</label><input class="in" id="r-end" type="date" value="' + today() + '"></div>',
+    openModal("Schedule return",
+      "<div>Schedule the return for <span class=\"cid\">" + esc(containerLabel(r.containerId)) + "</span> with " + esc(customerName(r.customerId)) + ". This creates a dispatch card — the rental stays active until the driver and dispatcher confirm the pickup.</div>" +
+      '<div class="fld"><label>Requested return date</label>' +
+      '<div class="combo-wrap"><input type="hidden" id="rr-date" value="' + today() + '">' +
+      '<input class="in" id="rr-date-display" readonly value="' + esc(formatDateDisplay(today())) + '" data-act="quote-date-toggle" data-field="rr-date" style="cursor:pointer">' +
+      '<div class="combo-list cal-panel" id="rr-date-cal"></div></div></div>' +
+      '<div class="muted" style="font-size:12px">Billing will prorate the credit off this requested date — the actual pickup date (once the driver completes the job) is tracked separately and won\'t change the credit if the schedule slips.</div>',
       '<button class="btn" data-act="modal-close">Cancel</button>' +
-      '<button class="btn primary" data-act="rental-end-confirm" data-id="' + esc(id) + '">End rental</button>');
+      '<button class="btn primary" data-act="rental-schedule-return-confirm" data-id="' + esc(id) + '">Schedule return</button>');
   }
-
-  function rentalEndConfirm(id) {
-    var end = el("r-end").value || today();
-    state.rentals = state.rentals.map(function (r) { return r.id === id ? Object.assign({}, r, { endDate: end }) : r; });
+  function rentalScheduleReturnConfirm(id) {
+    var r = rentalById(id);
+    if (!r) return;
+    var reqDate = el("rr-date").value || today();
+    var card = {
+      id: uid(), category: "Rental Return", sourceType: "rental", sourceId: r.id,
+      customerId: r.customerId, customerName: customerName(r.customerId),
+      containerId: r.containerId, containerType: "",
+      shipToAddress: r.shipToAddress || "", pickupAddress: "",
+      amount: r.monthlyRate, requestedDate: reqDate, scheduledDate: reqDate,
+      driver: "", released: false, notes: ""
+    };
+    state.rentals = state.rentals.map(function (x) { return x.id === id ? Object.assign({}, x, { requestedReturnDate: reqDate }) : x; });
+    state.dispatchcards.unshift(card);
     closeModal();
-    flash("Rental ended — container freed. It'll show up in Billing → \"Returned this month\" for the credit + pickup invoice.");
+    flash("Return scheduled for " + reqDate + " — added to the dispatch calendar");
     commit();
   }
 
@@ -1495,8 +1690,8 @@
       '<div class="fld"><label>Account # (optional)</label><input class="in mono" id="h-account" value="' + esc(h.accountNumber) + '"></div></div>' +
       '<div class="row2"><div class="fld"><label>PO (optional)</label><input class="in" id="h-po" value="' + esc(h.poNumber) + '"></div>' +
       '<div class="fld"><label>Service date</label><input class="in" id="h-date" type="date" value="' + esc(h.serviceDate || today()) + '"></div></div>' +
-      '<div class="fld"><label>Pick-up address</label><input class="in" id="h-pickup" value="' + esc(h.pickupAddress) + '"></div>' +
-      '<div class="fld"><label>Ship-to address</label><input class="in" id="h-shipto" value="' + esc(h.shipToAddress) + '"></div>' +
+      '<div class="fld"><label>Pick-up address</label><div class="combo-wrap"><input class="in addr-input" id="h-pickup" value="' + esc(h.pickupAddress) + '"><div class="combo-list" id="h-pickup-list"></div></div><div class="subline" id="h-pickup-hint" style="color:var(--warn)"></div></div>' +
+      '<div class="fld"><label>Ship-to address</label><div class="combo-wrap"><input class="in addr-input" id="h-shipto" value="' + esc(h.shipToAddress) + '"><div class="combo-list" id="h-shipto-list"></div></div><div class="subline" id="h-shipto-hint" style="color:var(--warn)"></div></div>' +
       '<div class="row2"><div class="fld"><label>Invoice amount ($)</label><input class="in mono" id="h-amount" type="number" min="0" value="' + esc(h.amount) + '"></div>' +
       '<div class="fld"><label>Driver</label><input class="in" id="h-driver" value="' + esc(h.driver) + '"></div></div>' +
       '<div class="fld"><label>Contact (optional)</label><input class="in" id="h-contact" value="' + esc(h.contact) + '"></div>' +
@@ -1660,6 +1855,10 @@
     for (var i = 0; i < state.quotes.length; i++) if (state.quotes[i].id === id) return state.quotes[i];
     return null;
   }
+  function quoteSiblings(q) {
+    if (!q || !q.batchId) return [];
+    return state.quotes.filter(function (x) { return x.batchId === q.batchId && x.id !== q.id; });
+  }
   function nextQuoteNumber() { return "Q-" + String(state.quotes.length + 1).padStart(5, "0"); }
   function quoteAmount(q) {
     if (q.category === "Rental") return Number(q.monthlyRate) || 0;
@@ -1707,18 +1906,25 @@
       } else {
         actions = '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">View</button>';
       }
+      var salesCont = q.category === "Sales" ? salesContainerById(q.salesContainerId) : null;
+      var sizeDisplay = q.category === "Sales" ? (salesCont ? salesCont.type : "—") : (q.category === "Rental" || q.category === "Contract Haul") ? (q.containerType || "—") : "—";
+      var siblings = quoteSiblings(q);
       return "<tr>" +
-        '<td class="cid">' + esc(q.quoteNumber) + "</td>" +
+        '<td class="cid">' + esc(q.quoteNumber) + (siblings.length ? '<div class="subline">Linked: ' + siblings.map(function (s) {
+          return '<a href="#" data-act="quote-edit" data-id="' + esc(s.id) + '" style="color:var(--primary-2);font-weight:600">' + esc(s.quoteNumber) + "</a>";
+        }).join(", ") + "</div>" : "") + "</td>" +
         "<td>" + esc(q.customerName) + "</td>" +
         '<td><span class="badge ' + quoteCatBadgeClass(q.category) + '">' + esc(q.category) + "</span></td>" +
+        "<td>" + esc(sizeDisplay) + "</td>" +
+        "<td>" + (salesCont ? esc(salesCont.condition) : "—") + "</td>" +
         '<td class="num">' + (q.requestedDate || "—") + "</td>" +
         '<td class="num money">' + money(quoteAmount(q), 0) + "</td>" +
-        "<td>" + (q.status === "Approved" ? badge("Paid") : q.status === "Declined" ? badge("Out of Service") : badge("Maintenance")) + "</td>" +
+        "<td>" + (q.status === "Approved" ? badge("Paid") : q.status === "Declined" ? badge("Out of Service") : badge("Draft")) + "</td>" +
         '<td class="right nowrap">' + actions + "</td></tr>";
     }).join("");
-    if (!list.length) rows = '<tr><td colspan="7" class="empty-row">No quotes match.</td></tr>';
+    if (!list.length) rows = '<tr><td colspan="9" class="empty-row">No quotes match.</td></tr>';
     el("quote-table").innerHTML =
-      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Quote #</th><th>Customer</th><th>Category</th><th>Requested date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Quote #</th><th>Customer</th><th>Category</th><th>Container size</th><th>Condition</th><th>Requested date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
     el("quote-count").textContent = "Showing " + list.length + " of " + state.quotes.length;
   }
 
@@ -1752,7 +1958,7 @@
   var QUOTE_LINE_ITEMS = [];
   function quoteModal(editing) {
     CURRENT_QUOTE_EDIT_ID = editing ? editing.id : null;
-    if (!editing) QUOTE_LINE_ITEMS = [];
+    if (!editing) { QUOTE_LINE_ITEMS = []; QUOTE_LINE_ITEM_EDIT_INDEX = null; }
     var q = editing || {
       id: "", quoteNumber: nextQuoteNumber(), category: "Rental", customerId: "", customerName: "", status: "Draft",
       createdDate: today(), approvedDate: null, notes: "",
@@ -1763,7 +1969,13 @@
     };
     var readOnly = editing && editing.status !== "Draft";
     var dis = readOnly ? " disabled" : "";
+    var siblings = editing ? quoteSiblings(editing) : [];
     openModal(editing ? (readOnly ? "View quote " + esc(q.quoteNumber) : "Edit quote " + esc(q.quoteNumber)) : "New quote",
+      (siblings.length
+        ? '<div class="banner" style="margin-bottom:0">Part of the same request as: ' + siblings.map(function (s) {
+            return '<a href="#" data-act="quote-edit" data-id="' + esc(s.id) + '" style="color:var(--primary-2);font-weight:600">' + esc(s.quoteNumber) + "</a>";
+          }).join(", ") + "</div>"
+        : "") +
       '<div class="fld"><label>Category</label><select class="in" id="q-category"' + dis + '>' + opt(QUOTE_CATEGORIES, q.category) + "</select></div>" +
 
       '<div class="fld"><label>Customer</label>' +
@@ -1793,15 +2005,22 @@
       "</div>" +
 
       '<div class="quote-group" id="q-group-haul">' +
-      '<div class="fld"><label>Pick-up address</label><input class="in" id="q-pickup" value="' + esc(q.pickupAddress) + '"' + dis + "></div>" +
+      '<div class="fld"><label>Container size</label><select class="in" id="q-haul-container-type"' + dis + '>' + opt(TYPES, q.containerType || TYPES[0]) + "</select></div>" +
+      '<div class="fld"><label>Pick-up address</label><div class="combo-wrap"><input class="in addr-input" id="q-pickup" value="' + esc(q.pickupAddress) + '"' + dis + '><div class="combo-list" id="q-pickup-list"></div></div><div class="subline" id="q-pickup-hint" style="color:var(--warn)"></div></div>' +
       '<div class="fld"><label>Haul amount ($)</label><input class="in mono" id="q-haul-amount" type="number" min="0" value="' + esc(q.haulAmount) + '"' + dis + "></div>" +
       "</div>" +
 
-      '<div class="fld"><label>Requested delivery / service date (optional)</label><input class="in" id="q-reqdate" type="date" value="' + esc(q.requestedDate || "") + '"' + dis + "></div>" +
-      '<div class="fld"><label>Ship-to / delivery address</label><input class="in" id="q-shipto" value="' + esc(q.shipToAddress) + '"' + dis + "></div>" +
+      '<div class="fld"><label>Requested delivery / service date (optional)</label>' +
+      '<div class="combo-wrap"><input type="hidden" id="q-reqdate" value="' + esc(q.requestedDate || "") + '">' +
+      '<input class="in" id="q-reqdate-display" readonly placeholder="Click to pick a date" value="' + esc(formatDateDisplay(q.requestedDate)) + '"' + dis + (dis ? "" : ' data-act="quote-date-toggle" data-field="q-reqdate" style="cursor:pointer"') + '>' +
+      '<div class="combo-list cal-panel" id="q-reqdate-cal"></div></div></div>' +
+      '<div class="fld"><label>Ship-to / delivery address</label><div class="combo-wrap"><input class="in addr-input" id="q-shipto" value="' + esc(q.shipToAddress) + '"' + dis + '><div class="combo-list" id="q-shipto-list"></div></div><div class="subline" id="q-shipto-hint" style="color:var(--warn)"></div></div>' +
+      (editing ? "" : '<div class="fld" id="q-sameaddr-wrap" style="display:none;margin-top:-6px">' +
+        '<label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">' +
+        '<input type="checkbox" id="q-sameaddr-check" style="width:auto"> Use the same address as line item 1</label></div>') +
       '<div class="fld"><label>PO # (optional)</label><input class="in" id="q-po" value="' + esc(q.poNumber) + '"' + dis + "></div>" +
       '<div class="fld"><label>Notes</label><textarea class="in" id="q-notes" rows="2"' + dis + '>' + esc(q.notes) + "</textarea></div>" +
-      (editing ? "" : '<button type="button" class="btn sm ghost" data-act="quote-lineitem-add">+ Add another line item to this quote</button>' +
+      (editing ? "" : '<button type="button" class="btn sm ghost" id="q-lineitem-add-btn" data-act="quote-lineitem-add">+ Add another line item to this quote</button>' +
         '<div class="muted" style="font-size:12px">Each line item gets its own delivery date and becomes its own quote card once saved.</div>'),
       '<button class="btn" data-act="modal-close">' + (readOnly ? "Close" : "Cancel") + "</button>" +
       (readOnly ? "" : '<button class="btn primary" data-act="quote-save" data-id="' + esc(editing ? editing.id : "") + '">' + (editing ? "Save changes" : "Save quote(s)") + "</button>"));
@@ -1817,22 +2036,30 @@
   function quoteLineItemSummary(item) {
     if (item.category === "Rental") return esc(item.containerType) + " — " + money(item.monthlyRate, 0) + "/mo + " + money(item.serviceFee, 0) + " fee" + (item.requestedDate ? " — delivery " + item.requestedDate : "");
     if (item.category === "Sales") return esc(item.salesContainerId) + " — " + money(item.salePrice, 0) + (item.requestedDate ? " — delivery " + item.requestedDate : "");
-    return "Haul from " + esc(item.pickupAddress || "?") + " — " + money(item.haulAmount, 0) + (item.requestedDate ? " — service " + item.requestedDate : "");
+    return (item.containerType ? esc(item.containerType) + " haul from " : "Haul from ") + esc(item.pickupAddress || "?") + " — " + money(item.haulAmount, 0) + (item.requestedDate ? " — service " + item.requestedDate : "");
   }
+  var QUOTE_LINE_ITEM_EDIT_INDEX = null;
   function renderQuoteLineItemsList() {
     var wrap = el("q-lineitems-wrap");
+    var sameAddrWrap = el("q-sameaddr-wrap");
+    if (sameAddrWrap) sameAddrWrap.style.display = QUOTE_LINE_ITEMS.length ? "block" : "none";
     if (!wrap) return;
     if (!QUOTE_LINE_ITEMS.length) { wrap.style.display = "none"; return; }
     wrap.style.display = "block";
     el("q-lineitems-list").innerHTML = QUOTE_LINE_ITEMS.map(function (item, idx) {
-      return '<div class="listrow"><div>' + quoteLineItemSummary(item) + '</div><button type="button" class="btn sm ghost danger" data-act="quote-lineitem-remove" data-index="' + idx + '">Remove</button></div>';
+      return '<div class="listrow"><div>' + quoteLineItemSummary(item) + '</div><div class="nowrap">' +
+        '<button type="button" class="btn sm ghost" data-act="quote-lineitem-edit" data-index="' + idx + '">Edit</button> ' +
+        '<button type="button" class="btn sm ghost danger" data-act="quote-lineitem-remove" data-index="' + idx + '">Remove</button></div></div>';
     }).join("");
+  }
+  function quoteContainerTypeFieldId() {
+    return el("q-category").value === "Contract Haul" ? "q-haul-container-type" : "q-container-type";
   }
   function quoteReadCurrentLineItem() {
     var category = el("q-category").value;
     return {
       category: category,
-      containerType: el("q-container-type").value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
+      containerType: el(quoteContainerTypeFieldId()).value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
       salesContainerId: el("q-salescont").value || "", salePrice: Number(el("q-sale-price").value) || 0,
       pickupAddress: el("q-pickup").value.trim(), haulAmount: Number(el("q-haul-amount").value) || 0,
       requestedDate: el("q-reqdate").value || "", shipToAddress: el("q-shipto").value.trim(), poNumber: el("q-po").value.trim()
@@ -1843,7 +2070,7 @@
     el("q-salescont").value = ""; el("q-salescont-search").value = ""; el("q-sale-price").value = "";
     el("q-bookvalue-wrap").style.display = "none";
     el("q-pickup").value = ""; el("q-haul-amount").value = "";
-    el("q-reqdate").value = ""; el("q-shipto").value = ""; el("q-po").value = "";
+    el("q-reqdate").value = ""; el("q-reqdate-display").value = ""; el("q-shipto").value = ""; el("q-po").value = "";
   }
   function quoteLineItemHasContent(item) {
     if (item.category === "Rental") return item.monthlyRate > 0;
@@ -1855,13 +2082,52 @@
     var item = quoteReadCurrentLineItem();
     if (!quoteLineItemHasContent(item)) return flash("Fill in this line item before adding it");
     if (item.category === "Sales" && !item.salesContainerId) return flash("Pick a sales container for this line item");
-    QUOTE_LINE_ITEMS.push(item);
+    if (QUOTE_LINE_ITEM_EDIT_INDEX !== null) {
+      QUOTE_LINE_ITEMS[QUOTE_LINE_ITEM_EDIT_INDEX] = item;
+      QUOTE_LINE_ITEM_EDIT_INDEX = null;
+      var addBtn = el("q-lineitem-add-btn");
+      if (addBtn) addBtn.textContent = "+ Add another line item to this quote";
+      flash("Line item updated");
+    } else {
+      QUOTE_LINE_ITEMS.push(item);
+      flash("Line item added — enter the next one, or save");
+    }
     quoteClearLineItemFields();
     renderQuoteLineItemsList();
-    flash("Line item added — enter the next one, or save");
+  }
+  function quoteEditLineItem(index) {
+    index = Number(index);
+    var item = QUOTE_LINE_ITEMS[index];
+    if (!item) return;
+    el("q-container-type").value = item.containerType || TYPES[0];
+    if (el("q-haul-container-type")) el("q-haul-container-type").value = item.containerType || TYPES[0];
+    el("q-monthly-rate").value = item.monthlyRate || "";
+    el("q-service-fee").value = item.serviceFee || "";
+    el("q-salescont").value = item.salesContainerId || "";
+    el("q-sale-price").value = item.salePrice || "";
+    var sc = item.salesContainerId ? salesContainerById(item.salesContainerId) : null;
+    el("q-salescont-search").value = sc ? (sc.id + " · " + sc.type) : "";
+    el("q-bookvalue-wrap").style.display = sc ? "" : "none";
+    if (sc) el("q-bookvalue-display").textContent = money(sc.bookValue);
+    el("q-pickup").value = item.pickupAddress || "";
+    el("q-haul-amount").value = item.haulAmount || "";
+    el("q-reqdate").value = item.requestedDate || "";
+    el("q-reqdate-display").value = formatDateDisplay(item.requestedDate);
+    el("q-shipto").value = item.shipToAddress || "";
+    el("q-po").value = item.poNumber || "";
+    QUOTE_LINE_ITEM_EDIT_INDEX = index;
+    var addBtn = el("q-lineitem-add-btn");
+    if (addBtn) addBtn.textContent = "Update this line item";
+    flash("Editing this line item — update the fields, then click \u201cUpdate this line item\u201d to save it back in");
   }
   function quoteRemoveLineItem(index) {
     QUOTE_LINE_ITEMS.splice(Number(index), 1);
+    if (QUOTE_LINE_ITEM_EDIT_INDEX === Number(index)) {
+      QUOTE_LINE_ITEM_EDIT_INDEX = null;
+      quoteClearLineItemFields();
+      var addBtn = el("q-lineitem-add-btn");
+      if (addBtn) addBtn.textContent = "+ Add another line item to this quote";
+    }
     renderQuoteLineItemsList();
   }
   function quoteSave(origId) {
@@ -1874,11 +2140,11 @@
     if (origId) {
       var prior = quoteById(origId);
       var obj = {
-        id: origId, quoteNumber: prior.quoteNumber,
+        id: origId, quoteNumber: prior.quoteNumber, batchId: prior.batchId || null,
         category: category, customerId: custId, customerName: customerName,
         status: prior.status, createdDate: prior.createdDate, approvedDate: prior.approvedDate,
         notes: el("q-notes").value.trim(),
-        containerType: el("q-container-type").value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
+        containerType: el(quoteContainerTypeFieldId()).value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
         salesContainerId: el("q-salescont").value || "", salePrice: Number(el("q-sale-price").value) || 0,
         pickupAddress: el("q-pickup").value.trim(), haulAmount: Number(el("q-haul-amount").value) || 0,
         requestedDate: el("q-reqdate").value || "", shipToAddress: el("q-shipto").value.trim(), poNumber: el("q-po").value.trim()
@@ -1906,11 +2172,12 @@
     if (!items.length) return flash("Add at least one line item before saving");
 
     var notes = el("q-notes").value.trim();
+    var batchId = items.length > 1 ? uid() : null;
     var createdCount = 0;
     var lastNumber = "";
     items.forEach(function (item) {
       var newObj = {
-        id: uid(), quoteNumber: nextQuoteNumber(),
+        id: uid(), quoteNumber: nextQuoteNumber(), batchId: batchId,
         category: category, customerId: custId, customerName: customerName,
         status: "Draft", createdDate: today(), approvedDate: null, notes: notes,
         containerType: item.containerType || TYPES[0], monthlyRate: item.monthlyRate || 0, serviceFee: item.serviceFee || 0,
@@ -1937,12 +2204,29 @@
       state.salescontainers = state.salescontainers.map(function (c) { return c.id === q.salesContainerId ? Object.assign({}, c, { status: "Available", reservedByQuoteId: null, reservedAt: null }) : c; });
     }
   }
+  function dispatchCatFromQuote(q) {
+    return q.category === "Rental" ? "Rental Delivery" : q.category === "Sales" ? "Sales" : "Contract Haul";
+  }
+  function dispatchCardFromQuote(q) {
+    return {
+      id: uid(), category: dispatchCatFromQuote(q), sourceType: "quote", sourceId: q.id,
+      customerId: q.customerId, customerName: q.customerName,
+      containerId: q.category === "Sales" ? (q.salesContainerId || "") : "",
+      containerType: (q.category === "Rental" || q.category === "Contract Haul") ? (q.containerType || "") : "",
+      shipToAddress: q.category === "Contract Haul" ? "" : (q.shipToAddress || ""),
+      pickupAddress: q.category === "Contract Haul" ? (q.pickupAddress || "") : "",
+      amount: quoteAmount(q),
+      requestedDate: q.requestedDate || "", scheduledDate: q.requestedDate || "",
+      driver: "", released: false, notes: q.notes || ""
+    };
+  }
   function quoteApprove(id) {
     var q = quoteById(id);
     if (!q) return;
     state.quotes = state.quotes.map(function (x) { return x.id === id ? Object.assign({}, x, { status: "Approved", approvedDate: today() }) : x; });
-    var next = q.category === "Sales" ? "sales delivery schedule" : q.category === "Contract Haul" ? "haul dispatch" : "rental delivery schedule";
-    flash("Quote " + q.quoteNumber + " approved — ready for the " + next + " (dispatch board arrives in a later update)");
+    var card = dispatchCardFromQuote(q);
+    state.dispatchcards.unshift(card);
+    flash("Quote " + q.quoteNumber + " approved — added to the dispatch " + (card.scheduledDate ? "calendar (" + card.scheduledDate + ")" : "queue"));
     commit();
   }
   function quoteDecline(id) {
@@ -1952,6 +2236,338 @@
     releaseQuoteSalesHold(q);
     state.quotes = state.quotes.map(function (x) { return x.id === id ? Object.assign({}, x, { status: "Declined" }) : x; });
     flash("Quote declined");
+    commit();
+  }
+
+  /* --------------------------- dispatch board --------------------------- */
+  function renderDriverView() {
+    var v = el("view");
+    if (!AUTH.driverName) {
+      v.innerHTML =
+        '<div class="card empty" style="max-width:480px;margin:60px auto">' +
+        "<h3>No driver assignment on file</h3>" +
+        "<p>Your account is set up as a driver, but isn't linked to Driver 1 or Driver 2 yet. Ask your dispatcher to fix this under Driver Access.</p>" +
+        "</div>";
+      return;
+    }
+    var iso = today();
+    var myCards = state.dispatchcards.filter(function (c) {
+      return c.scheduledDate === iso && c.released && c.driver === AUTH.driverName;
+    });
+    var cardsHtml = myCards.map(function (c) {
+      return '<div class="card" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + ')">' +
+        '<span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span>" +
+        '<h3 style="margin:10px 0 4px">' + esc(c.customerName) + "</h3>" +
+        '<div class="muted">' + esc(dispatchCardSummary(c)) + "</div>" +
+        "</div>";
+    }).join("");
+    v.innerHTML =
+      '<div class="pagehead"><div><h2>Today\u2019s Jobs</h2><div class="sub">' + esc(new Date(iso + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })) + " · " + esc(AUTH.driverName) + "</div></div></div>" +
+      (myCards.length ? cardsHtml : '<div class="card empty"><h3>Nothing released yet</h3><p>Check back once your dispatcher releases today\u2019s jobs to you.</p></div>');
+  }
+  function dispatchDriverAccentVar(cat) {
+    return cat === "Rental Delivery" ? "ok" : cat === "Rental Return" ? "danger" : cat === "Sales" ? "rent" : "credit";
+  }
+  function dispatchCatClass(cat) {
+    return cat === "Rental Delivery" ? "b-ok" : cat === "Rental Return" ? "b-danger" : cat === "Sales" ? "b-rent" : "b-credit";
+  }
+  function dispatchPillClass(cat) {
+    return cat === "Rental Delivery" ? "dcard-rental-delivery" : cat === "Rental Return" ? "dcard-rental-return" : cat === "Sales" ? "dcard-sales" : "dcard-contract-haul";
+  }
+  function dispatchCardById(id) {
+    for (var i = 0; i < state.dispatchcards.length; i++) if (state.dispatchcards[i].id === id) return state.dispatchcards[i];
+    return null;
+  }
+  function dispatchCardSummary(c) {
+    if (c.category === "Rental Delivery") return (c.containerType || "Container") + " to " + (c.shipToAddress || "address TBD");
+    if (c.category === "Rental Return") return "Pick up " + containerLabel(c.containerId) + " from " + (c.shipToAddress || "address on file");
+    if (c.category === "Sales") return (c.containerId || "Container") + " sale to " + (c.shipToAddress || "address TBD");
+    return (c.containerType ? c.containerType + " haul from " : "Haul from ") + (c.pickupAddress || "pickup TBD");
+  }
+  function dispatchCardsQueue() {
+    return state.dispatchcards.filter(function (c) { return !c.scheduledDate; })
+      .sort(function (a, b) { return (a.requestedDate || "").localeCompare(b.requestedDate || ""); });
+  }
+  function dispatchCardsForMonth(ym) {
+    return state.dispatchcards.filter(function (c) { return c.scheduledDate && monthKey(c.scheduledDate) === ym; });
+  }
+
+  function renderDispatch(v) {
+    v.innerHTML =
+      '<div class="pagehead"><div><h2>Dispatch</h2><div class="sub">Approved jobs, scheduled onto drivers and dates</div></div></div>' +
+      '<div class="panel"><h3>Queue<span class="count" id="dispatch-queue-count"></span></h3>' +
+      '<p class="panel-sub">Approved jobs with no date yet — assign one to put them on the calendar.</p>' +
+      '<div id="dispatch-queue-table"></div></div>' +
+      '<div class="panel"><div class="panel-head"><div><h3>Calendar</h3><p class="panel-sub">Click a card to reassign it, reschedule it, or release it to a driver. Drag a card to move or reorder it.</p></div></div>' +
+      '<div class="toolbar">' +
+      '<div class="chips">' +
+      ["day", "week", "month"].map(function (mo) {
+        return '<button class="chip ' + (ui.dispatchViewMode === mo ? "on" : "") + '" data-act="dispatch-view-mode" data-mode="' + mo + '">' + mo.charAt(0).toUpperCase() + mo.slice(1) + "</button>";
+      }).join("") + "</div>" +
+      '<button class="btn sm ghost" data-act="dispatch-nav-prev">&lsaquo; Prev</button>' +
+      '<button class="btn sm ghost" data-act="dispatch-nav-today">Today</button>' +
+      '<button class="btn sm ghost" data-act="dispatch-nav-next">Next &rsaquo;</button>' +
+      '<div style="font-weight:650;font-size:14px;margin-left:4px" id="dispatch-view-label"></div>' +
+      "</div>" +
+      '<div class="chips" style="margin-bottom:12px">' +
+      '<button class="chip ' + (ui.dispatchDriverFilter === "all" ? "on" : "") + '" data-act="dispatch-driver-filter" data-driver="all">All</button>' +
+      DRIVERS.map(function (d) {
+        return '<button class="chip ' + (ui.dispatchDriverFilter === d ? "on" : "") + '" data-act="dispatch-driver-filter" data-driver="' + esc(d) + '">' + esc(d) + "</button>";
+      }).join("") +
+      '<button class="chip ' + (ui.dispatchDriverFilter === "unassigned" ? "on" : "") + '" data-act="dispatch-driver-filter" data-driver="unassigned">Unassigned</button>' +
+      "</div>" +
+      '<div id="dispatch-calendar"></div>' +
+      '<div class="chips" style="margin-top:12px">' +
+      '<span class="badge b-ok">Rental delivery</span> <span class="badge b-danger">Rental return</span> <span class="badge b-rent">Sales</span> <span class="badge b-credit">Contract haul</span> ' +
+      '<span class="muted" style="font-size:12.5px">👁 = released to driver · numbered dot = assigned driver</span>' +
+      "</div></div>";
+    renderDispatchQueueTable();
+    renderDispatchCalendar();
+    el("dispatch-view-label").textContent = dispatchViewLabel();
+  }
+  function renderDispatchQueueTable() {
+    var queue = dispatchCardsQueue();
+    el("dispatch-queue-count").textContent = queue.length;
+    var rows = queue.map(function (c) {
+      return '<tr class="drag-card" draggable="true" data-id="' + esc(c.id) + '" style="cursor:grab">' +
+        '<td><span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span></td>" +
+        "<td>" + esc(c.customerName) + "</td>" +
+        "<td>" + esc(dispatchCardSummary(c)) + "</td>" +
+        '<td class="num money">' + money(c.amount, 0) + "</td>" +
+        '<td class="num">' + (c.requestedDate || "—") + "</td>" +
+        '<td class="right"><button class="btn sm primary" data-act="dispatch-schedule" data-id="' + esc(c.id) + '">Schedule</button></td></tr>';
+    }).join("");
+    if (!queue.length) rows = '<tr><td colspan="6" class="empty-row">Nothing waiting — everything approved has a date.</td></tr>';
+    el("dispatch-queue-table").innerHTML =
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Type</th><th>Customer</th><th>Details</th><th>Amount</th><th>Requested date</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+      (queue.length ? '<div class="muted" style="font-size:12px;margin-top:8px">Drag a row straight onto the calendar below to schedule it — or use the button.</div>' : "");
+  }
+  function dispatchWeekRange(dateIso) {
+    var pd = parts(dateIso);
+    var d = new Date(pd.y, pd.m - 1, pd.d);
+    var dow = d.getDay();
+    var start = new Date(d); start.setDate(d.getDate() - dow);
+    var days = [];
+    for (var i = 0; i < 7; i++) { var x = new Date(start); x.setDate(start.getDate() + i); days.push(x.toISOString().slice(0, 10)); }
+    return days;
+  }
+  function dispatchViewLabel() {
+    var ref = ui.dispatchRefDate, p = parts(ref);
+    if (ui.dispatchViewMode === "day") return new Date(p.y, p.m - 1, p.d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    if (ui.dispatchViewMode === "week") {
+      var days = dispatchWeekRange(ref), sp = parts(days[0]), ep = parts(days[6]);
+      var sLabel = new Date(sp.y, sp.m - 1, sp.d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      var eLabel = new Date(ep.y, ep.m - 1, ep.d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      return sLabel + " – " + eLabel;
+    }
+    return calendarMonthLabel(monthKey(ref));
+  }
+  function dispatchShiftRef(dir) {
+    var p = parts(ui.dispatchRefDate);
+    var d = new Date(p.y, p.m - 1, p.d);
+    if (ui.dispatchViewMode === "day") d.setDate(d.getDate() + dir);
+    else if (ui.dispatchViewMode === "week") d.setDate(d.getDate() + dir * 7);
+    else d.setMonth(d.getMonth() + dir);
+    ui.dispatchRefDate = d.toISOString().slice(0, 10);
+  }
+  function driverColor(driverName) {
+    var idx = DRIVERS.indexOf(driverName);
+    return idx === 0 ? "#0e3a5c" : idx === 1 ? "#946610" : "#55626f";
+  }
+  function driverBadgeHtml(driverName) {
+    if (!driverName) return "";
+    return '<span class="driver-badge" style="background:' + driverColor(driverName) + '" title="Assigned to ' + esc(driverName) + '">' + esc(driverName.slice(-1)) + "</span>";
+  }
+  function dispatchCardPillHtml(c) {
+    var label = (c.released ? "👁 " : "") + driverBadgeHtml(c.driver) + esc(c.customerName);
+    return '<div class="dcard drag-card ' + dispatchPillClass(c.category) + (c.released ? " dcard-released" : "") + '" draggable="true" data-act="dispatch-manage" data-id="' + esc(c.id) + '" title="' + esc(c.category) + ": " + esc(c.customerName) + (c.driver ? " — " + esc(c.driver) : " — unassigned") + (c.released ? " — released to driver" : "") + '">' + label + "</div>";
+  }
+  function renderDispatchCalendar() {
+    if (ui.dispatchViewMode === "day") renderDispatchDayView();
+    else if (ui.dispatchViewMode === "week") renderDispatchWeekView();
+    else renderDispatchMonthView();
+  }
+  function dispatchCardMatchesFilter(c) {
+    if (ui.dispatchDriverFilter === "all") return true;
+    if (ui.dispatchDriverFilter === "unassigned") return !c.driver;
+    return c.driver === ui.dispatchDriverFilter;
+  }
+  function renderDispatchMonthView() {
+    var ym = monthKey(ui.dispatchRefDate);
+    var cards = dispatchCardsForMonth(ym).filter(dispatchCardMatchesFilter);
+    var byDay = {};
+    cards.forEach(function (c) { (byDay[c.scheduledDate] = byDay[c.scheduledDate] || []).push(c); });
+    var p = ym.split("-"); var y = Number(p[0]), m = Number(p[1]);
+    var firstDow = new Date(y, m - 1, 1).getDay();
+    var dim = daysInMonth(y, m);
+    var cells = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(function (d) { return '<div class="dcal-dow">' + d + "</div>"; });
+    for (var i = 0; i < firstDow; i++) cells.push('<div class="dcal-day dcal-empty"></div>');
+    for (var d = 1; d <= dim; d++) {
+      var iso = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+      var pills = (byDay[iso] || []).map(dispatchCardPillHtml).join("");
+      var cls = "dcal-day" + (iso === today() ? " dcal-today" : "");
+      cells.push('<div class="' + cls + '" data-date="' + iso + '"><div class="dcal-daynum">' + d + "</div>" + pills + "</div>");
+    }
+    el("dispatch-calendar").innerHTML = '<div class="dispatch-cal">' + cells.join("") + "</div>";
+  }
+  function dispatchDriverLanes() {
+    var all = [{ label: "Unassigned", driver: "" }].concat(DRIVERS.map(function (d) { return { label: d, driver: d }; }));
+    if (ui.dispatchDriverFilter === "all") return all;
+    if (ui.dispatchDriverFilter === "unassigned") return all.filter(function (l) { return l.driver === ""; });
+    return all.filter(function (l) { return l.driver === ui.dispatchDriverFilter; });
+  }
+  function renderDispatchWeekView() {
+    var days = dispatchWeekRange(ui.dispatchRefDate);
+    var lanes = dispatchDriverLanes();
+    var html = lanes.map(function (lane) {
+      var cells = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(function (d) { return '<div class="dcal-dow">' + d + "</div>"; });
+      days.forEach(function (iso) {
+        var dayCards = state.dispatchcards.filter(function (c) { return c.scheduledDate === iso && (c.driver || "") === lane.driver; });
+        var pills = dayCards.map(dispatchCardPillHtml).join("");
+        var cls = "dcal-day dcal-week" + (iso === today() ? " dcal-today" : "");
+        cells.push('<div class="' + cls + '" data-date="' + iso + '" data-driver="' + esc(lane.driver) + '"><div class="dcal-daynum">' + parts(iso).d + "</div>" + pills + "</div>");
+      });
+      return '<div class="driver-lane"><h4 class="driver-lane-label">' + (lane.driver ? driverBadgeHtml(lane.driver) : "") + esc(lane.label) + "</h4>" +
+        '<div class="dispatch-cal">' + cells.join("") + "</div></div>";
+    }).join("");
+    el("dispatch-calendar").innerHTML = html;
+  }
+  function dispatchDayRowHtml(c) {
+    return '<div class="listrow drag-card" draggable="true" data-act="dispatch-manage" data-id="' + esc(c.id) + '" style="cursor:grab">' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+      '<span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span>" +
+      "<div><div style=\"font-weight:600\">" + driverBadgeHtml(c.driver) + esc(c.customerName) + (c.released ? ' <span title="Released to driver">👁</span>' : "") + "</div>" +
+      '<div class="subline">' + esc(dispatchCardSummary(c)) + "</div></div></div></div>";
+  }
+  function renderDispatchDayView() {
+    var iso = ui.dispatchRefDate;
+    var lanes = dispatchDriverLanes();
+    var html = lanes.map(function (lane) {
+      var dayCards = state.dispatchcards.filter(function (c) { return c.scheduledDate === iso && (c.driver || "") === lane.driver; });
+      var body = dayCards.length
+        ? '<div class="list" data-date="' + iso + '" data-driver="' + esc(lane.driver) + '">' + dayCards.map(dispatchDayRowHtml).join("") + "</div>"
+        : '<div class="empty-row" data-date="' + iso + '" data-driver="' + esc(lane.driver) + '" style="border:1px dashed var(--line);border-radius:8px">Nothing here — drag a card in.</div>';
+      return '<div class="driver-lane"><h4 class="driver-lane-label">' + (lane.driver ? driverBadgeHtml(lane.driver) : "") + esc(lane.label) + "</h4>" + body + "</div>";
+    }).join("");
+    el("dispatch-calendar").innerHTML = html;
+  }
+  function dispatchCardModal(card) {
+    var scheduled = !!card.scheduledDate;
+    var driverOpts = '<option value="">Unassigned</option>' + DRIVERS.map(function (d) {
+      return '<option value="' + esc(d) + '"' + (d === card.driver ? " selected" : "") + ">" + esc(d) + "</option>";
+    }).join("");
+    openModal((scheduled ? "Manage" : "Schedule") + " job — " + esc(card.customerName),
+      '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
+      '<div class="fld"><label>Scheduled date</label>' +
+      '<div class="combo-wrap"><input type="hidden" id="dc-date" value="' + esc(card.scheduledDate || "") + '">' +
+      '<input class="in" id="dc-date-display" readonly placeholder="Click to pick a date" value="' + esc(formatDateDisplay(card.scheduledDate)) + '" data-act="quote-date-toggle" data-field="dc-date" style="cursor:pointer">' +
+      '<div class="combo-list cal-panel" id="dc-date-cal"></div></div></div>' +
+      '<div class="fld"><label>Driver</label><select class="in" id="dc-driver">' + driverOpts + "</select></div>" +
+      '<div class="fld"><label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">' +
+      '<input type="checkbox" id="dc-released" style="width:auto"' + (card.released ? " checked" : "") + "> Released for driver viewing</label></div>",
+      '<button class="btn" data-act="modal-close">Cancel</button>' +
+      (scheduled ? '<button class="btn ghost" data-act="dispatch-to-queue" data-id="' + esc(card.id) + '">Move to queue</button>' : "") +
+      '<button class="btn primary" data-act="dispatch-save" data-id="' + esc(card.id) + '">Save</button>');
+  }
+  function dispatchCardSave(id) {
+    var date = el("dc-date").value || "";
+    var driver = el("dc-driver").value || "";
+    var released = el("dc-released").checked;
+    state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === id ? Object.assign({}, c, { scheduledDate: date, driver: driver, released: released }) : c; });
+    closeModal();
+    flash(date ? "Scheduled for " + date + (driver ? " — " + driver : "") : "Moved to the queue");
+    commit();
+  }
+  function dispatchMoveToQueue(id) {
+    state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === id ? Object.assign({}, c, { scheduledDate: "" }) : c; });
+    closeModal();
+    flash("Moved back to the queue");
+    commit();
+  }
+  function dispatchMoveCard(cardId, dateIso, driver) {
+    var card = dispatchCardById(cardId);
+    if (!card) return;
+    var patch = {}, changed = false;
+    if (card.scheduledDate !== dateIso) { patch.scheduledDate = dateIso; changed = true; }
+    if (driver !== null && (card.driver || "") !== driver) { patch.driver = driver; changed = true; }
+    if (!changed) return;
+    state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === cardId ? Object.assign({}, c, patch) : c; });
+    var msg = "Moved to " + formatDateDisplay(dateIso);
+    if (driver !== null) msg += driver ? " — assigned to " + driver : " — unassigned";
+    flash(msg);
+    commit();
+  }
+  function dispatchReorderCard(draggedId, targetId) {
+    if (draggedId === targetId) return;
+    var dragged = dispatchCardById(draggedId);
+    var target = dispatchCardById(targetId);
+    if (!dragged || !target) return;
+    var patch = {};
+    if (dragged.scheduledDate !== target.scheduledDate) patch.scheduledDate = target.scheduledDate;
+    if ((dragged.driver || "") !== (target.driver || "")) patch.driver = target.driver || "";
+    var changed = Object.keys(patch).length > 0;
+    var updatedDragged = changed ? Object.assign({}, dragged, patch) : dragged;
+    state.dispatchcards = state.dispatchcards.filter(function (c) { return c.id !== draggedId; });
+    var targetIdx = state.dispatchcards.findIndex(function (c) { return c.id === targetId; });
+    state.dispatchcards.splice(targetIdx, 0, updatedDragged);
+    flash(changed ? "Moved" : "Reordered");
+    commit();
+  }
+
+  /* --------------------------- driver access --------------------------- */
+  function profileByEmail(email) {
+    var e = (email || "").toLowerCase();
+    for (var i = 0; i < state.profiles.length; i++) if ((state.profiles[i].email || "").toLowerCase() === e) return state.profiles[i];
+    return null;
+  }
+  function renderDriverAccess(v) {
+    v.innerHTML =
+      '<div class="pagehead"><div><h2>Driver Access<span class="count">' + state.profiles.length + '</span></h2><div class="sub">Map team email addresses to a role — staff see the full app, drivers see only their released jobs for today</div></div>' +
+      '<button class="btn primary" data-act="profile-add">+ Add access record</button></div>' +
+      '<div class="banner">Invite the person first under Supabase → Authentication → Users, then add their email here with the right role. There\'s no self-serve sign-up in this app on purpose.</div>' +
+      '<div id="profile-table"></div>';
+    renderProfileTable();
+  }
+  function renderProfileTable() {
+    var rows = state.profiles.map(function (p) {
+      return "<tr>" +
+        "<td>" + esc(p.email) + "</td>" +
+        "<td>" + (p.role === "driver" ? badge("Driver") : badge("Staff")) + "</td>" +
+        "<td>" + (p.driverName || "—") + "</td>" +
+        '<td class="right nowrap">' +
+        '<button class="btn sm ghost" data-act="profile-edit" data-id="' + esc(p.email) + '">Edit</button> ' +
+        '<button class="btn sm ghost danger" data-act="profile-del" data-id="' + esc(p.email) + '">Del</button></td></tr>';
+    }).join("");
+    if (!state.profiles.length) rows = '<tr><td colspan="4" class="empty-row">No access records yet — everyone signing in defaults to full staff access until you add one.</td></tr>';
+    el("profile-table").innerHTML =
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Email</th><th>Role</th><th>Driver</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+  }
+  function profileModal(editing) {
+    var p = editing || { email: "", role: "staff", driverName: "" };
+    openModal(editing ? "Edit access record" : "Add access record",
+      '<div class="fld"><label>Email</label><input class="in" id="p-email" value="' + esc(p.email) + '"' + (editing ? " disabled" : "") + "></div>" +
+      '<div class="fld"><label>Role</label><select class="in" id="p-role">' + opt([{ v: "staff", t: "Staff — full app" }, { v: "driver", t: "Driver — today\u2019s jobs only" }], p.role) + "</select></div>" +
+      '<div class="fld"><label>Driver (only used if role is Driver)</label><select class="in" id="p-drivername">' + opt([""].concat(DRIVERS), p.driverName || "") + "</select></div>",
+      '<button class="btn" data-act="modal-close">Cancel</button>' +
+      '<button class="btn primary" data-act="profile-save" data-id="' + esc(editing ? editing.email : "") + '">Save</button>');
+  }
+  function profileSave(origEmail) {
+    var email = (origEmail || el("p-email").value.trim()).toLowerCase();
+    if (!email) return flash("Enter an email");
+    var role = el("p-role").value;
+    var driverName = role === "driver" ? (el("p-drivername").value || "") : "";
+    if (!origEmail && profileByEmail(email)) return flash("That email already has an access record");
+    var obj = { email: email, role: role, driverName: driverName };
+    if (origEmail) state.profiles = state.profiles.map(function (p) { return p.email === origEmail ? obj : p; });
+    else state.profiles.unshift(obj);
+    closeModal();
+    flash(origEmail ? "Access record updated" : "Access record added");
+    commit();
+  }
+  function profileDel(email) {
+    if (!confirm("Remove the access record for " + email + "? They'll default to full staff access next time they sign in unless you add them again.")) return;
+    state.profiles = state.profiles.filter(function (p) { return p.email !== email; });
+    flash("Access record removed");
     commit();
   }
 
@@ -1971,7 +2587,7 @@
     "load-sample": loadRealData,
     "reset-all": resetAll,
     "modal-close": closeModal,
-    "overlay": function (t, e) { if (e.target.classList.contains("overlay")) closeModal(); },
+
     "fleet-add": function () { fleetModal(null); },
     "fleet-edit": function (t) { fleetModal(state.containers.find(function (c) { return c.id === t.getAttribute("data-id"); })); },
     "fleet-del": function (t) { fleetDel(t.getAttribute("data-id")); },
@@ -2003,8 +2619,8 @@
     "rental-newcont-create": function () { rentalNewContainerCreate(); },
     "rental-newcust-toggle": function () { var d = el("r-newcust"); d.style.display = d.style.display === "none" ? "grid" : "none"; },
     "rental-newcust-create": function () { rentalNewCustomerCreate(); },
-    "rental-end": function (t) { rentalEndModal(t.getAttribute("data-id")); },
-    "rental-end-confirm": function (t) { rentalEndConfirm(t.getAttribute("data-id")); },
+    "rental-schedule-return": function (t) { rentalScheduleReturnModal(t.getAttribute("data-id")); },
+    "rental-schedule-return-confirm": function (t) { rentalScheduleReturnConfirm(t.getAttribute("data-id")); },
     "rental-view": function (t) { ui.rentalView = t.getAttribute("data-view"); render(); },
     "bill-new-toggle": function (t) { toggleNewRentalInvoice(t.getAttribute("data-id")); },
     "bill-new-all": function () { generateAllNewRentalInvoices(ui.billMonth); },
@@ -2073,18 +2689,45 @@
       if (c) { wrap.style.display = ""; disp.textContent = money(c.bookValue); } else { wrap.style.display = "none"; }
     },
     "quote-lineitem-add": function () { quoteAddLineItem(); },
-    "quote-lineitem-remove": function (t) { quoteRemoveLineItem(t.getAttribute("data-index")); }
+    "address-pick": function (t) {
+      var fieldId = t.getAttribute("data-field");
+      el(fieldId).value = t.getAttribute("data-value");
+      el(fieldId + "-list").style.display = "none";
+      updateAddressHint(fieldId);
+    },
+    "quote-lineitem-edit": function (t) { quoteEditLineItem(t.getAttribute("data-index")); },
+    "quote-lineitem-remove": function (t) { quoteRemoveLineItem(t.getAttribute("data-index")); },
+    "quote-date-toggle": function (t) { quoteDateToggle(t.getAttribute("data-field")); },
+    "quote-date-pick": function (t) { quoteDatePick(t.getAttribute("data-field"), t.getAttribute("data-date")); },
+    "quote-date-prevmonth": function (t) { quoteDateShiftMonth(t.getAttribute("data-field"), -1); },
+    "quote-date-nextmonth": function (t) { quoteDateShiftMonth(t.getAttribute("data-field"), 1); },
+    "quote-date-clear": function (t) { quoteDateClear(t.getAttribute("data-field")); },
+    "quote-date-today": function (t) { quoteDateToday(t.getAttribute("data-field")); },
+    "dispatch-schedule": function (t) { dispatchCardModal(dispatchCardById(t.getAttribute("data-id"))); },
+    "dispatch-manage": function (t) { dispatchCardModal(dispatchCardById(t.getAttribute("data-id"))); },
+    "dispatch-save": function (t) { dispatchCardSave(t.getAttribute("data-id")); },
+    "dispatch-to-queue": function (t) { dispatchMoveToQueue(t.getAttribute("data-id")); },
+    "dispatch-view-mode": function (t) { ui.dispatchViewMode = t.getAttribute("data-mode"); render(); },
+    "dispatch-nav-prev": function () { dispatchShiftRef(-1); render(); },
+    "dispatch-nav-next": function () { dispatchShiftRef(1); render(); },
+    "dispatch-nav-today": function () { ui.dispatchRefDate = today(); render(); },
+    "dispatch-driver-filter": function (t) { ui.dispatchDriverFilter = t.getAttribute("data-driver"); render(); },
+    "profile-add": function () { profileModal(null); },
+    "profile-edit": function (t) { profileModal(profileByEmail(t.getAttribute("data-id"))); },
+    "profile-del": function (t) { profileDel(t.getAttribute("data-id")); },
+    "profile-save": function (t) { profileSave(t.getAttribute("data-id")); }
   };
 
   document.addEventListener("click", function (e) {
+    Array.prototype.forEach.call(document.querySelectorAll(".combo-list"), function (list) {
+      if (!list.parentElement.contains(e.target)) list.style.display = "none";
+    });
+    if (e.target.classList && e.target.classList.contains("overlay")) { closeModal(); return; }
     var node = e.target.closest("[data-act]");
     if (node) {
       var act = node.getAttribute("data-act");
       if (CLICK[act]) { e.preventDefault(); CLICK[act](node, e); }
     }
-    Array.prototype.forEach.call(document.querySelectorAll(".combo-list"), function (list) {
-      if (!list.parentElement.contains(e.target)) list.style.display = "none";
-    });
   });
 
   document.addEventListener("input", function (e) {
@@ -2099,6 +2742,46 @@
     else if (e.target.id === "r-cust-search") { el("r-cust").value = ""; renderCustomerCombo(e.target.value); }
     else if (e.target.id === "q-cust-search") { el("q-customer").value = ""; renderQuoteCustomerCombo(e.target.value); }
     else if (e.target.id === "q-salescont-search") { el("q-salescont").value = ""; el("q-bookvalue-wrap").style.display = "none"; renderSalesContainerCombo(e.target.value); }
+    else if (e.target.classList.contains("addr-input")) { renderAddressCombo(e.target.id, e.target.value); }
+  });
+
+  document.addEventListener("dragstart", function (e) {
+    var card = e.target.closest(".drag-card");
+    if (!card) return;
+    e.dataTransfer.setData("text/plain", card.getAttribute("data-id"));
+    e.dataTransfer.effectAllowed = "move";
+    card.classList.add("dcard-dragging");
+  });
+  document.addEventListener("dragend", function (e) {
+    var card = e.target.closest(".drag-card");
+    if (card) card.classList.remove("dcard-dragging");
+    Array.prototype.forEach.call(document.querySelectorAll(".dcal-day-over"), function (el2) { el2.classList.remove("dcal-day-over"); });
+  });
+  document.addEventListener("dragover", function (e) {
+    if (e.target.closest("[data-date]") || e.target.closest(".drag-card")) e.preventDefault();
+  });
+  document.addEventListener("dragenter", function (e) {
+    var day = e.target.closest("[data-date]");
+    if (day) day.classList.add("dcal-day-over");
+  });
+  document.addEventListener("dragleave", function (e) {
+    var day = e.target.closest("[data-date]");
+    if (day && !day.contains(e.relatedTarget)) day.classList.remove("dcal-day-over");
+  });
+  document.addEventListener("drop", function (e) {
+    var draggedId = e.dataTransfer.getData("text/plain");
+    Array.prototype.forEach.call(document.querySelectorAll(".dcal-day-over"), function (el2) { el2.classList.remove("dcal-day-over"); });
+    if (!draggedId) return;
+    var targetCard = e.target.closest(".drag-card");
+    var targetDay = e.target.closest("[data-date]");
+    if (targetCard && targetCard.getAttribute("data-id") !== draggedId) {
+      e.preventDefault();
+      dispatchReorderCard(draggedId, targetCard.getAttribute("data-id"));
+    } else if (targetDay && targetDay.getAttribute("data-date")) {
+      e.preventDefault();
+      var driverAttr = targetDay.hasAttribute("data-driver") ? targetDay.getAttribute("data-driver") : null;
+      dispatchMoveCard(draggedId, targetDay.getAttribute("data-date"), driverAttr);
+    }
   });
 
   document.addEventListener("focusin", function (e) {
@@ -2106,14 +2789,19 @@
     else if (e.target.id === "r-cust-search") renderCustomerCombo(e.target.value);
     else if (e.target.id === "q-cust-search") renderQuoteCustomerCombo(e.target.value);
     else if (e.target.id === "q-salescont-search") renderSalesContainerCombo(e.target.value);
+    else if (e.target.classList.contains("addr-input")) renderAddressCombo(e.target.id, e.target.value);
   });
 
   document.addEventListener("change", function (e) {
     if (e.target.id === "fleet-type") { ui.fleetType = e.target.value; renderFleetTable(); }
     else if (e.target.classList.contains("rental-end-input")) { rentalEndDateEdit(e.target.getAttribute("data-id"), e.target.value); }
     else if (e.target.id === "bill-month") { ui.billMonth = e.target.value; render(); }
+
     else if (e.target.classList.contains("coll-stage-select")) { setCollectionStage(e.target.getAttribute("data-id"), e.target.value); renderCollections(el("view")); }
     else if (e.target.id === "q-category") { quoteShowGroup(e.target.value); }
+    else if (e.target.id === "q-sameaddr-check") {
+      if (e.target.checked && QUOTE_LINE_ITEMS.length) el("q-shipto").value = QUOTE_LINE_ITEMS[0].shipToAddress || "";
+    }
   });
 
   /* --------------------------- init --------------------------- */
