@@ -215,7 +215,7 @@
   var SALES_HOLD_DAYS = 7; // a sales container reserved to an unapproved quote this long auto-releases
   var QUOTE_CATEGORIES = ["Rental", "Sales", "Contract Haul"];
   var DISPATCH_CATEGORIES = ["Rental Delivery", "Rental Return", "Sales", "Contract Haul"];
-  var DRIVERS = ["Driver 1", "Driver 2"]; // only two drivers today — rename these to real names any time
+  var DRIVERS = ["Jim", "Brian"]; // rename here any time driver rosters change
   var STORE_KEY = "crt_data_v3";
   var RECURRING_STALE_MONTHS = 2; // safety net: unflagged rentals this old (relative to the closing month) surface regardless of exact month match
 
@@ -543,11 +543,20 @@
       "</div>";
   }
 
+  var DRIVER_LOGIN_DOMAIN = "wms-driver.local"; // drivers sign in with just a username; this suffix builds the real email Supabase Auth needs behind the scenes
+  var LOGIN_MODE = "staff"; // "staff" | "driver" — which login form is showing right now
   function renderLoginScreen() {
+    var isDriver = LOGIN_MODE === "driver";
     el("view").innerHTML =
       '<div class="card" style="max-width:400px;margin:60px auto;padding:28px 32px">' +
       "<h2 style=\"margin-top:0\">Sign in</h2>" +
-      '<div class="fld"><label>Email</label><input class="in" id="login-email" type="email" autocomplete="username"></div>' +
+      '<div class="chips" style="margin-bottom:16px">' +
+      '<button class="chip ' + (!isDriver ? "on" : "") + '" data-act="login-mode" data-mode="staff">Staff</button>' +
+      '<button class="chip ' + (isDriver ? "on" : "") + '" data-act="login-mode" data-mode="driver">Driver</button>' +
+      "</div>" +
+      (isDriver
+        ? '<div class="fld"><label>Username</label><input class="in" id="login-username" autocomplete="username"></div>'
+        : '<div class="fld"><label>Email</label><input class="in" id="login-email" type="email" autocomplete="username"></div>') +
       '<div class="fld"><label>Password</label><input class="in" id="login-pass" type="password" autocomplete="current-password"></div>' +
       '<button class="btn primary" style="width:100%" data-act="auth-signin">Sign in</button>' +
       '<div id="login-error" style="color:var(--danger);font-size:13px;margin-top:10px"></div>' +
@@ -556,10 +565,16 @@
   }
 
   async function doSignIn() {
-    var email = el("login-email").value.trim();
-    var pass = el("login-pass").value;
     var errEl = el("login-error");
     errEl.textContent = "";
+    var email, pass = el("login-pass").value;
+    if (LOGIN_MODE === "driver") {
+      var username = el("login-username").value.trim().toLowerCase();
+      if (!username) { errEl.textContent = "Enter your username"; return; }
+      email = username + "@" + DRIVER_LOGIN_DOMAIN;
+    } else {
+      email = el("login-email").value.trim();
+    }
     var res = await sb.auth.signInWithPassword({ email: email, password: pass });
     if (res.error) errEl.textContent = res.error.message;
   }
@@ -2773,7 +2788,7 @@
   }
   function driverBadgeHtml(driverName) {
     if (!driverName) return "";
-    return '<span class="driver-badge" style="background:' + driverColor(driverName) + '" title="Assigned to ' + esc(driverName) + '">' + esc(driverName.slice(-1)) + "</span>";
+    return '<span class="driver-badge" style="background:' + driverColor(driverName) + '" title="Assigned to ' + esc(driverName) + '">' + esc(driverName.charAt(0).toUpperCase()) + "</span>";
   }
   function dispatchCardPillHtml(c) {
     var flagged = c.scanStatus === "mismatch" || c.scanStatus === "unrecognized";
@@ -2965,19 +2980,29 @@
   }
   function profileModal(editing) {
     var p = editing || { email: "", role: "staff", driverName: "" };
+    var isDriver = p.role === "driver";
+    var existingUsername = isDriver && p.email ? p.email.split("@")[0] : "";
     openModal(editing ? "Edit access record" : "Add access record",
-      '<div class="fld"><label>Email</label><input class="in" id="p-email" value="' + esc(p.email) + '"' + (editing ? " disabled" : "") + "></div>" +
       '<div class="fld"><label>Role</label><select class="in" id="p-role">' + opt([{ v: "staff", t: "Staff — full app" }, { v: "driver", t: "Driver — today\u2019s jobs only" }], p.role) + "</select></div>" +
-      '<div class="fld"><label>Driver (only used if role is Driver)</label><select class="in" id="p-drivername">' + opt([""].concat(DRIVERS), p.driverName || "") + "</select></div>",
+      '<div class="fld" id="p-email-wrap" style="' + (isDriver ? "display:none" : "") + '"><label>Email</label><input class="in" id="p-email" value="' + esc(isDriver ? "" : p.email) + '"' + (editing ? " disabled" : "") + "></div>" +
+      '<div class="fld" id="p-username-wrap" style="' + (isDriver ? "" : "display:none") + '"><label>Username</label><input class="in" id="p-username" value="' + esc(existingUsername) + '"' + (editing ? " disabled" : "") + '><div class="muted" style="font-size:11.5px;margin-top:4px">They\'ll sign in with just this, under the Driver tab on the login screen.</div></div>' +
+      '<div class="fld"><label>Driver name (only used if role is Driver)</label><select class="in" id="p-drivername">' + opt([""].concat(DRIVERS), p.driverName || "") + "</select></div>",
       '<button class="btn" data-act="modal-close">Cancel</button>' +
       '<button class="btn primary" data-act="profile-save" data-id="' + esc(editing ? editing.email : "") + '">Save</button>');
   }
   function profileSave(origEmail) {
-    var email = (origEmail || el("p-email").value.trim()).toLowerCase();
-    if (!email) return flash("Enter an email");
     var role = el("p-role").value;
+    var email;
+    if (role === "driver") {
+      var username = el("p-username").value.trim().toLowerCase();
+      if (!username) return flash("Enter a username");
+      email = origEmail || (username + "@" + DRIVER_LOGIN_DOMAIN);
+    } else {
+      email = (origEmail || el("p-email").value.trim()).toLowerCase();
+      if (!email) return flash("Enter an email");
+    }
     var driverName = role === "driver" ? (el("p-drivername").value || "") : "";
-    if (!origEmail && profileByEmail(email)) return flash("That email already has an access record");
+    if (!origEmail && profileByEmail(email)) return flash("That " + (role === "driver" ? "username" : "email") + " already has an access record");
     var obj = { email: email, role: role, driverName: driverName };
     if (origEmail) state.profiles = state.profiles.map(function (p) { return p.email === origEmail ? obj : p; });
     else state.profiles.unshift(obj);
@@ -3072,6 +3097,7 @@
       collectionNotesModal(id);
     },
     "auth-signin": function () { doSignIn(); },
+    "login-mode": function (t) { LOGIN_MODE = t.getAttribute("data-mode"); renderLoginScreen(); },
     "auth-signout": function () { doSignOut(); },
     "haul-add": function () { haulModal(null); },
     "haul-edit": function (t) { haulModal(haulById(t.getAttribute("data-id"))); },
@@ -3237,6 +3263,11 @@
 
     else if (e.target.classList.contains("coll-stage-select")) { setCollectionStage(e.target.getAttribute("data-id"), e.target.value); renderCollections(el("view")); }
     else if (e.target.id === "q-category") { quoteShowGroup(e.target.value); }
+    else if (e.target.id === "p-role") {
+      var isDriverRole = e.target.value === "driver";
+      el("p-email-wrap").style.display = isDriverRole ? "none" : "";
+      el("p-username-wrap").style.display = isDriverRole ? "" : "none";
+    }
     else if (e.target.id === "labels-select-all") { labelsToggleAll(e.target.checked); }
     else if (e.target.id === "q-sameaddr-check") {
       if (e.target.checked && QUOTE_LINE_ITEMS.length) el("q-shipto").value = QUOTE_LINE_ITEMS[0].shipToAddress || "";
