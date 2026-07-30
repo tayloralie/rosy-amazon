@@ -2421,6 +2421,25 @@
   }
 
   /* --------------------------- dispatch board --------------------------- */
+  function driverJobCardHtml(c) {
+    var needsContainer = c.category !== "Contract Haul";
+    var statusNote = "";
+    if (needsContainer) {
+      if (c.scanStatus === "mismatch") statusNote = '<div class="banner" style="margin-top:8px">Scanned container doesn\u2019t match — flagged for your dispatcher</div>';
+      else if (c.scanStatus === "unrecognized") statusNote = '<div class="banner" style="margin-top:8px">Scanned code not recognized — flagged for your dispatcher</div>';
+      else if (c.containerId) statusNote = '<div class="subline" style="margin-top:8px;color:var(--ok)">Container: ' + esc(c.containerId) + (c.scanStatus === "matched" ? " — confirmed" : c.scanStatus === "assigned" ? " — assigned" : "") + "</div>";
+      else statusNote = '<div class="subline" style="margin-top:8px">Container not captured yet — tap to scan</div>';
+    }
+    var confirmNote = c.driverConfirmed
+      ? '<div class="subline" style="margin-top:6px;color:var(--ok)">\u2705 ' + esc(driverConfirmLabel(c.category)) + " — " + esc(c.actualDate || "") + (c.dispatcherConfirmed ? " — confirmed by dispatcher" : " — awaiting dispatcher") + "</div>"
+      : '<div class="subline" style="margin-top:6px">Tap to ' + esc(driverConfirmLabel(c.category).toLowerCase()) + "</div>";
+    return '<div class="card drag-card-off" data-act="driver-job-open" data-id="' + esc(c.id) + '" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + (c.driverConfirmed ? ");opacity:.75" : ")") + ';cursor:pointer">' +
+      '<span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span>" +
+      '<h3 style="margin:10px 0 4px">' + esc(c.customerName) + "</h3>" +
+      '<div class="muted">' + esc(dispatchCardSummary(c)) + "</div>" +
+      statusNote + confirmNote +
+      "</div>";
+  }
   function renderDriverView() {
     var v = el("view");
     if (!AUTH.driverName) {
@@ -2435,28 +2454,14 @@
     var myCards = state.dispatchcards.filter(function (c) {
       return c.scheduledDate === iso && c.released && c.driver === AUTH.driverName;
     });
-    var cardsHtml = myCards.map(function (c) {
-      var needsContainer = c.category !== "Contract Haul";
-      var statusNote = "";
-      if (needsContainer) {
-        if (c.scanStatus === "mismatch") statusNote = '<div class="banner" style="margin-top:8px">Scanned container doesn\u2019t match — flagged for your dispatcher</div>';
-        else if (c.scanStatus === "unrecognized") statusNote = '<div class="banner" style="margin-top:8px">Scanned code not recognized — flagged for your dispatcher</div>';
-        else if (c.containerId) statusNote = '<div class="subline" style="margin-top:8px;color:var(--ok)">Container: ' + esc(c.containerId) + (c.scanStatus === "matched" ? " — confirmed" : c.scanStatus === "assigned" ? " — assigned" : "") + "</div>";
-        else statusNote = '<div class="subline" style="margin-top:8px">Container not captured yet — tap to scan</div>';
-      }
-      var confirmNote = c.driverConfirmed
-        ? '<div class="subline" style="margin-top:6px;color:var(--ok)">\u2705 ' + esc(driverConfirmLabel(c.category)) + " — awaiting dispatcher</div>"
-        : '<div class="subline" style="margin-top:6px">Tap to ' + esc(driverConfirmLabel(c.category).toLowerCase()) + "</div>";
-      return '<div class="card drag-card-off" data-act="driver-job-open" data-id="' + esc(c.id) + '" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + ');cursor:pointer">' +
-        '<span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span>" +
-        '<h3 style="margin:10px 0 4px">' + esc(c.customerName) + "</h3>" +
-        '<div class="muted">' + esc(dispatchCardSummary(c)) + "</div>" +
-        statusNote + confirmNote +
-        "</div>";
-    }).join("");
+    var upNext = myCards.filter(function (c) { return !c.driverConfirmed; });
+    var completed = myCards.filter(function (c) { return c.driverConfirmed; });
     v.innerHTML =
       '<div class="pagehead"><div><h2>Today\u2019s Jobs</h2><div class="sub">' + esc(new Date(iso + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })) + " · " + esc(AUTH.driverName) + "</div></div></div>" +
-      (myCards.length ? cardsHtml : '<div class="card empty"><h3>Nothing released yet</h3><p>Check back once your dispatcher releases today\u2019s jobs to you.</p></div>');
+      '<h3 style="margin:0 0 10px">Up Next<span class="count">' + upNext.length + "</span></h3>" +
+      (upNext.length ? upNext.map(driverJobCardHtml).join("") : '<div class="card empty"><h3>Nothing released yet</h3><p>Check back once your dispatcher releases today\u2019s jobs to you.</p></div>') +
+      '<h3 style="margin:24px 0 10px">Completed<span class="count">' + completed.length + "</span></h3>" +
+      (completed.length ? completed.map(driverJobCardHtml).join("") : '<div class="muted" style="font-size:13px">Nothing finished yet today.</div>');
   }
   function dispatchDriverAccentVar(cat) {
     return cat === "Rental Delivery" ? "ok" : cat === "Rental Return" ? "danger" : cat === "Sales" ? "rent" : "credit";
