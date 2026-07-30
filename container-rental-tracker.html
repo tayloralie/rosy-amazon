@@ -177,6 +177,7 @@
       <button data-act="tab" data-tab="sales-inv">Sales Inventory</button>
       <button data-act="tab" data-tab="quotes">Quotes</button>
       <button data-act="tab" data-tab="dispatch">Dispatch</button>
+      <button data-act="tab" data-tab="sales-billing">Sales Billing</button>
       <button data-act="tab" data-tab="driver-access">Driver Access</button>
     </nav>
   </header>
@@ -224,7 +225,7 @@
   var REAL_CONTRACT_HAUL = [{"id": "397ec834-e25a-4378-9400-07dce55903e2", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595848", "pickupAddress": "1580 Agate Street, Eugene", "shipToAddress": "", "serviceDate": "2026-07-14", "amount": 153.25, "contact": "", "driver": "Jim 7/14", "notes": "", "billed": false}, {"id": "c3db0475-bd6e-4d3f-9c85-978140a4e290", "customerName": "Ryan", "accountNumber": "card to Joey", "poNumber": "", "pickupAddress": "Cecil Avenue, Eugene", "shipToAddress": "Cloverdale Road, Creswell", "serviceDate": "2026-07-27", "amount": 900.0, "contact": "Ryan", "driver": "Jim 7/27", "notes": "", "billed": false}, {"id": "7592d7e1-d85c-4ed6-bc05-c7a4fb48f23e", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595314", "pickupAddress": "", "shipToAddress": "2659 Olympic Street, Springfield", "serviceDate": "2026-07-28", "amount": 153.25, "contact": "Cody", "driver": "Jim 7/28", "notes": "", "billed": false}, {"id": "4507e3e6-3317-4708-975b-6322b0a23eb9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595168", "pickupAddress": "", "shipToAddress": "1580 Agate Street, Eugene", "serviceDate": "2026-07-27", "amount": 459.75, "contact": "Grant", "driver": "Jim 7/27", "notes": "", "billed": false}, {"id": "5234efe4-a0aa-4207-bb3b-579b01fb5b7f", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595681", "pickupAddress": "", "shipToAddress": "1265 Candlelight Drive, Eugene", "serviceDate": "2026-07-24", "amount": 153.25, "contact": "Corey", "driver": "Jim 7/24", "notes": "", "billed": false}, {"id": "25b68d1c-8ff5-4057-858d-43d84683eb5d", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595610", "pickupAddress": "", "shipToAddress": "2121 Madrona Street, North Bend", "serviceDate": "2026-07-23", "amount": 2008.5, "contact": "Troy", "driver": "Jim 7/23 and 7/28", "notes": "", "billed": false}, {"id": "aab34697-46ff-4d36-92a7-7c89093de04c", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595612", "pickupAddress": "", "shipToAddress": "1265 Candlelight Drive, Eugene", "serviceDate": "2026-07-23", "amount": 153.25, "contact": "Corey", "driver": "Jim 7/23", "notes": "", "billed": false}, {"id": "73f664bc-6829-4ec4-b77c-6274b4c40d4b", "customerName": "Tracey Mcpherson Friend", "accountNumber": "", "poNumber": "", "pickupAddress": "", "shipToAddress": "Tracey's shop", "serviceDate": "2026-07-20", "amount": 900.0, "contact": "Aaron", "driver": "Jim 7/20", "notes": "", "billed": false}, {"id": "81d9495f-4bb0-45ff-805e-ba75c2217204", "customerName": "Andy McGee", "accountNumber": "", "poNumber": "", "pickupAddress": "Empire Concrete", "shipToAddress": "955 A Street", "serviceDate": "2026-07-17", "amount": 300.0, "contact": "Andy", "driver": "Jim 7/17", "notes": "", "billed": false}, {"id": "44e37ce8-da52-424d-935a-e6f3ed2f1dec", "customerName": "Edge Construction", "accountNumber": "", "poNumber": "342794", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-07-17", "amount": 500.0, "contact": "Troy", "driver": "Jim 7/17", "notes": "", "billed": false}, {"id": "95d7a6c5-67eb-4b54-812d-16cdcbd8b843", "customerName": "Harvey and Price", "accountNumber": "", "poNumber": "2670256 \"The Mark\"", "pickupAddress": "2015 Nugget Way", "shipToAddress": "1290 Alder", "serviceDate": "2026-07-16", "amount": 300.0, "contact": "Josh", "driver": "Jim 7/16", "notes": "", "billed": false}, {"id": "9c946636-e654-4327-b21f-42b4340ff8e7", "customerName": "Vanessa", "accountNumber": "", "poNumber": "", "pickupAddress": "", "shipToAddress": "85295 Marriott Lane, Pleasant Hill", "serviceDate": "2026-07-15", "amount": 300.0, "contact": "Vanessa", "driver": "Jim 7/15", "notes": "on site move", "billed": false}, {"id": "8c738298-e873-454b-9de7-a36d6981b318", "customerName": "Harvey and Price", "accountNumber": "", "poNumber": "NexGen#2531455", "pickupAddress": "410 River Ave", "shipToAddress": "17th and Moss", "serviceDate": "2026-07-14", "amount": 300.0, "contact": "Josh", "driver": "Jim 7/14", "notes": "", "billed": false}, {"id": "23aa58fd-77b3-439e-b5cd-c2d44ca1c4ec", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595230", "pickupAddress": "700 Old Salem Road NE, Albany", "shipToAddress": "", "serviceDate": "2026-07-10", "amount": 361.25, "contact": "Jeff", "driver": "Jim 7/10", "notes": "", "billed": false}, {"id": "1a77146e-90c0-4875-ae8a-f0316640eafb", "customerName": "Camp Creek Electric", "accountNumber": "08-92038", "poNumber": "Pengra to Hwy 58", "pickupAddress": "39194 Pengra Rd, Dexter", "shipToAddress": "34597 Hwy 58", "serviceDate": "2026-07-07", "amount": 450.0, "contact": "Josh", "driver": "Jim 7/8", "notes": "", "billed": false}, {"id": "6c4f850b-1e9c-4c68-bac3-7170e6ec3083", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595058", "pickupAddress": "82710 Maple Street, Dunes City Florence", "shipToAddress": "", "serviceDate": "2026-07-07", "amount": 465.0, "contact": "Daphne", "driver": "Jim 7/7", "notes": "", "billed": false}, {"id": "e34f78ff-8b1f-4641-9827-34bc54dceace", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594988", "pickupAddress": "2815 Chad Drive, Eugene", "shipToAddress": "", "serviceDate": "2026-07-07", "amount": 153.25, "contact": "Chase/Mike/Anthony", "driver": "Jim 7/7", "notes": "", "billed": false}, {"id": "496671e3-680e-46b5-a0a3-fe110ff47a10", "customerName": "Ordell Construction", "accountNumber": "08-0091974", "poNumber": "Creswell High", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-07-01", "amount": 900.0, "contact": "Billy", "driver": "Jim 7/1", "notes": "", "billed": true}, {"id": "b7192946-e315-43b2-8908-f8056efdedc9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "595086", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-12", "amount": 477.25, "contact": "Laura", "driver": "Jim 5/12", "notes": "mistaken Rose Hill POs from May and Gunnar Cave", "billed": true}, {"id": "d61278e2-bca9-4465-a02b-9eca166b0583", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594848", "pickupAddress": "55 Division Avenue, Eugene", "shipToAddress": "", "serviceDate": "2026-06-30", "amount": 459.75, "contact": "", "driver": "Jim 6/30", "notes": "", "billed": true}, {"id": "2e4e0730-6b27-43a4-b2c9-96e32b94f6b1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594780", "pickupAddress": "", "shipToAddress": "1580 Agate Street, Eugene", "serviceDate": "2026-06-29", "amount": 153.25, "contact": "Michael", "driver": "Jim 6/29", "notes": "", "billed": true}, {"id": "b912f815-dfd4-4b01-9882-504fbcae3ae0", "customerName": "Ptarmigan Trails", "accountNumber": "08-95949", "poNumber": "move from 52nd", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-06-25", "amount": 180.0, "contact": "Mike", "driver": "Jim 6/25", "notes": "", "billed": true}, {"id": "2c3ac353-cbe0-4ed6-a256-56b775e5dee1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "LCC move", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-06-24", "amount": 350.0, "contact": "Mike", "driver": "Jim 6/24", "notes": "", "billed": true}, {"id": "5fa56138-fb27-46c3-934a-74774bd2663c", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594569", "pickupAddress": "3859 Goldfish Farm Road SE, Albany", "shipToAddress": "", "serviceDate": "2026-06-23", "amount": 312.0, "contact": "Russ", "driver": "Jim 6/23", "notes": "", "billed": true}, {"id": "d9c4cb44-5e76-4410-955a-7d7008ca3168", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594487", "pickupAddress": "4701 Hwy 101, Florence", "shipToAddress": "", "serviceDate": "2026-06-22", "amount": 465.0, "contact": "Mike", "driver": "Jim 6/22", "notes": "", "billed": true}, {"id": "29063f05-a700-4789-a26b-e530412b8cec", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594489", "pickupAddress": "2400 Lincoln Street, Eugene", "shipToAddress": "", "serviceDate": "2026-06-19", "amount": 153.25, "contact": "Shane", "driver": "Jim 6/19", "notes": "", "billed": true}, {"id": "36bd09aa-5777-401b-bf37-c329e1e0aa2e", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594432", "pickupAddress": "", "shipToAddress": "Awbrey Park and Spring Creek Elementary", "serviceDate": "2026-06-18", "amount": 306.5, "contact": "Ed", "driver": "Jim 6/18", "notes": "", "billed": true}, {"id": "9ace0c1d-f0fd-4b49-ac47-5032546f39a0", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594435", "pickupAddress": "", "shipToAddress": "McCornack and Charlemagne Elementary", "serviceDate": "2026-06-18", "amount": 306.25, "contact": "Ed", "driver": "Jim 6/18", "notes": "", "billed": true}, {"id": "9c732456-9125-4055-9b8f-84e624014dfe", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594362", "pickupAddress": "", "shipToAddress": "Edgewood Elementary", "serviceDate": "2026-06-17", "amount": 306.25, "contact": "Ed", "driver": "Jim 6/17", "notes": "", "billed": true}, {"id": "76a7a943-7f1e-4c93-a5e5-65b5c8337474", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594361", "pickupAddress": "", "shipToAddress": "Charlemagne Elementary", "serviceDate": "2026-06-17", "amount": 153.25, "contact": "Ed", "driver": "Jim 6/17", "notes": "", "billed": true}, {"id": "6afcc204-afac-4903-864f-8e2f982c4cd3", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594246", "pickupAddress": "", "shipToAddress": "2730 Gateway Street, Springfield Walmart", "serviceDate": "2026-06-15", "amount": 613.0, "contact": "Crystle", "driver": "Jim 6/16", "notes": "", "billed": true}, {"id": "3ed21e6a-4a33-4e3b-8594-fe5ea8c8851a", "customerName": "Brothers Plumbing", "accountNumber": "08-91011", "poNumber": "25-0210", "pickupAddress": "33846 Looney Lane, Albany", "shipToAddress": "Slocum on Chad Drive", "serviceDate": "2026-06-12", "amount": 750.0, "contact": "Tim", "driver": "Jim 6/12", "notes": "", "billed": true}, {"id": "ccf062dc-a376-40fe-996a-0b95ec5c4edf", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594195", "pickupAddress": "", "shipToAddress": "2730 Gateway Street, Springfield Walmart", "serviceDate": "2026-06-11", "amount": 766.25, "contact": "", "driver": "Jim 6/11", "notes": "", "billed": true}, {"id": "3ee1e317-1a13-4da6-b4fc-fad325f89024", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594077", "pickupAddress": "497 Oakway Road, Eugene", "shipToAddress": "", "serviceDate": "2026-06-10", "amount": 152.5, "contact": "Bill", "driver": "Jim 6/10", "notes": "", "billed": true}, {"id": "19a7ea0a-135a-420b-917c-5280892560e0", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594076", "pickupAddress": "202 SW 1st Street, Corvallis", "shipToAddress": "", "serviceDate": "2026-06-10", "amount": 460.0, "contact": "Steve", "driver": "Jim 6/10", "notes": "", "billed": true}, {"id": "ac702423-1641-454d-965c-483e87def6b1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "594078", "pickupAddress": "410 River Road, Eugene", "shipToAddress": "", "serviceDate": "2026-06-10", "amount": 151.25, "contact": "Scott", "driver": "Jim 6/10", "notes": "", "billed": true}, {"id": "b0b56511-e2f5-4364-8d7a-3c4991b3af9c", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "593625", "pickupAddress": "", "shipToAddress": "Greenhill and West 11th, Eugene", "serviceDate": "2026-06-01", "amount": 150.0, "contact": "Sam", "driver": "2026-06-01 00:00:00", "notes": "", "billed": true}, {"id": "fe6e9c27-ed93-43c0-b913-0c1299eb9c75", "customerName": "John Howard", "accountNumber": "check to Jim", "poNumber": "", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-29", "amount": 450.0, "contact": "John", "driver": "Jim 5/29", "notes": "", "billed": false}, {"id": "ee116686-a58f-40cb-9c7f-5c627b789d88", "customerName": "Andy McGee", "accountNumber": "cash to Jim", "poNumber": "", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-20", "amount": 300.0, "contact": "Andy", "driver": "Jim 5/20", "notes": "", "billed": true}, {"id": "e13354c9-cbb8-4c19-80a2-57c452dcd9e9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "593229", "pickupAddress": "", "shipToAddress": "195 North Bertelsen Road, Eugene", "serviceDate": "2026-05-19", "amount": 150.0, "contact": "Emma", "driver": "Jim 5/19", "notes": "", "billed": true}, {"id": "f6a92ec6-5448-4395-8f37-b5ab301295c9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "593199", "pickupAddress": "", "shipToAddress": "33846 Looney Lane, Tangent", "serviceDate": "2026-05-19", "amount": 359.5, "contact": "Bobby", "driver": "Jim 5/19", "notes": "", "billed": true}, {"id": "3e44aa47-beee-4778-bd64-4c8e832f2ef8", "customerName": "Camp Creek Electric", "accountNumber": "08-92038", "poNumber": "Pengra to River", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-18", "amount": 600.0, "contact": "Josh", "driver": "Jim 5/18", "notes": "", "billed": true}, {"id": "d26432f6-8f59-4c7e-ad56-4711f464777d", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "593086", "pickupAddress": "", "shipToAddress": "2375 Tremont Avenue, North Bend", "serviceDate": "2026-05-15", "amount": 1003.5, "contact": "Don", "driver": "Jim 5/15", "notes": "", "billed": true}, {"id": "dd37420d-3a0f-4c01-9ff6-ab2c199bc580", "customerName": "OEG", "accountNumber": "08-92304", "poNumber": "181171-FA9P-99-010", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-05-15", "amount": 450.0, "contact": "Bryce", "driver": "Brian 5/15", "notes": "", "billed": true}, {"id": "88ff5210-f5b8-4296-9e2e-250d3e7f16dd", "customerName": "Twin Rivers", "accountNumber": "08-90817", "poNumber": "175 Fairway Loop", "pickupAddress": "", "shipToAddress": "175 Fairway Loop, Eugene", "serviceDate": "2026-05-14", "amount": 300.0, "contact": "Chase", "driver": "Jim 5/14", "notes": "", "billed": true}, {"id": "6b294fbf-417c-4d60-9adf-dd121afdfe94", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592944", "pickupAddress": "", "shipToAddress": "2815 Chad Drive, Eugene", "serviceDate": "2026-05-12", "amount": 150.0, "contact": "Chase", "driver": "Jim 5/12", "notes": "", "billed": true}, {"id": "88a09a29-3734-4304-937e-4ffcc25f308d", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592909", "pickupAddress": "", "shipToAddress": "532 Northwest 3rd Street, Corvallis", "serviceDate": "2026-05-12", "amount": 450.0, "contact": "James or Gwen", "driver": "Jim 5/12", "notes": "", "billed": true}, {"id": "f3544b1e-e181-4dc3-96c4-cc27deb5d679", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592733", "pickupAddress": "", "shipToAddress": "251 Northeast Agness Avenue, Grants Pass", "serviceDate": "2026-05-11", "amount": 1342.0, "contact": "Justin", "driver": "Jim 5/11", "notes": "", "billed": true}, {"id": "5b0dd622-e76c-4450-ac08-fa10ebdc6a8b", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592590", "pickupAddress": "", "shipToAddress": "86631 Rose Hill Road, Florence", "serviceDate": "2026-05-08", "amount": 324.0, "contact": "Amy", "driver": "Jim 5/8", "notes": "", "billed": true}, {"id": "befc5d13-aae1-452e-b63d-ef8d634aa85c", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592732", "pickupAddress": "", "shipToAddress": "251 Northeast Agness Avenue, Grants Pass", "serviceDate": "2026-05-07", "amount": 1342.0, "contact": "Justin", "driver": "Jim 5/7", "notes": "", "billed": true}, {"id": "e7f0821e-68fa-46e3-bb64-9c5cbee334b0", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592684", "pickupAddress": "", "shipToAddress": "251 Northeast Agness Avenue, Grants Pass", "serviceDate": "2026-05-06", "amount": 1342.0, "contact": "Justin", "driver": "Jim 5/6", "notes": "", "billed": true}, {"id": "0651958b-1f29-4684-b215-689016e88992", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592633", "pickupAddress": "", "shipToAddress": "3300 Chad Drive, Eugene", "serviceDate": "2026-05-05", "amount": 150.0, "contact": "Josh", "driver": "Jim 5/5", "notes": "", "billed": true}, {"id": "c85987c0-330d-4154-82e4-f8f6eec400f1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592632", "pickupAddress": "", "shipToAddress": "1420 NW Shady Lane, Albany", "serviceDate": "2026-05-05", "amount": 324.0, "contact": "Todd", "driver": "Jim 5/5", "notes": "", "billed": true}, {"id": "88906842-e70e-4538-9f03-d9110c580f18", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592624", "pickupAddress": "", "shipToAddress": "55 Division Avenue, Eugene", "serviceDate": "2026-05-04", "amount": 490.0, "contact": "Rodger", "driver": "Jim 5/4", "notes": "", "billed": true}, {"id": "f822c5c3-4026-4a9b-893b-07a162e30893", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592589", "pickupAddress": "", "shipToAddress": "86631 Rose Hill Road, Florence", "serviceDate": "2026-05-04", "amount": 324.0, "contact": "Amy", "driver": "Jim 5/4", "notes": "", "billed": true}, {"id": "2607b427-4a92-4625-96fc-b6f1092e02f4", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "592412", "pickupAddress": "", "shipToAddress": "55 Division Avenue, Eugene", "serviceDate": "2026-05-01", "amount": 367.5, "contact": "Rodger", "driver": "Jim 4/29", "notes": "", "billed": true}, {"id": "91d3577d-c7da-4114-ae9b-36c740c839a0", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591432", "pickupAddress": "", "shipToAddress": "Crater Lake", "serviceDate": "2026-04-28", "amount": 1300.0, "contact": "Arlis", "driver": "Jim 4/28", "notes": "", "billed": true}, {"id": "a4b55b02-4135-4657-a85e-473cc40cab39", "customerName": "Brothers Plumbing", "accountNumber": "08-91011", "poNumber": "25-0210", "pickupAddress": "575 West Oregon Avenue, Creswell", "shipToAddress": "3300 Chad Drive, Eugene", "serviceDate": "2026-04-27", "amount": 500.0, "contact": "Tim", "driver": "Jim 4/27", "notes": "", "billed": true}, {"id": "34bb55ea-6504-48c4-8503-c4ff1fac8296", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2520-5205", "pickupAddress": "650 30th Street, Springfield", "shipToAddress": "Emerald Valley Golf Course", "serviceDate": "2026-04-23", "amount": 350.0, "contact": "John", "driver": "Jim 4/23", "notes": "", "billed": true}, {"id": "903b804a-ed0b-4009-9e44-c914178d7c96", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591954", "pickupAddress": "1752 East 17th, Eugene", "shipToAddress": "", "serviceDate": "2026-04-20", "amount": 244.0, "contact": "Rob", "driver": "Jim 4/20", "notes": "", "billed": true}, {"id": "5329ec31-9391-44ce-a31c-367a547b7be9", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591952", "pickupAddress": "", "shipToAddress": "1875 North 6th Street, Coos Bay", "serviceDate": "2026-04-17", "amount": 809.25, "contact": "Jahaziel", "driver": "Jim 4/17", "notes": "", "billed": true}, {"id": "f7b6a67c-b235-4ccb-9b65-32ba5985d364", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591750", "pickupAddress": "255 North Fred Haight Drive, Smith River", "shipToAddress": "", "serviceDate": "2026-04-16", "amount": 1556.0, "contact": "Kevin", "driver": "Jim 4/16", "notes": "", "billed": true}, {"id": "2a344f54-c5d5-474e-b7fb-b209bf3a5129", "customerName": "Food for Lane County", "accountNumber": "08-90602", "poNumber": "Emily 770 Flamingo", "pickupAddress": "770 Flamingo, Eugene", "shipToAddress": "1465 Coburg Road, Eugene", "serviceDate": "2026-04-14", "amount": 350.0, "contact": "Emily", "driver": "Jim 4/14", "notes": "", "billed": true}, {"id": "b200f167-511c-4356-8be4-971c73a82e0b", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2529-5214", "pickupAddress": "Rosboro Springfield", "shipToAddress": "3300 Chad Drive, Eugene", "serviceDate": "2026-04-14", "amount": 450.0, "contact": "John", "driver": "Jim 4/14", "notes": "", "billed": true}, {"id": "9544d0b4-7a95-4395-92d7-bc61a322749d", "customerName": "Mercury Metal", "accountNumber": "08-95325", "poNumber": "", "pickupAddress": "960 SE Monmouth Cutoff Road, Dallas", "shipToAddress": "2323 Cross Street, Eugene", "serviceDate": "2026-04-13", "amount": 1400.0, "contact": "Ryan", "driver": "Jim 4/13", "notes": "", "billed": true}, {"id": "142a050c-02e6-45d6-9e3f-0eaba908eef1", "customerName": "Lanz Cabinets", "accountNumber": "ran card", "poNumber": "", "pickupAddress": "91186 North Coburg Industrial Way, Coburg", "shipToAddress": "60 North Danebo, Eugene", "serviceDate": "2026-04-10", "amount": 300.0, "contact": "Brent", "driver": "Jim 4/10", "notes": "", "billed": true}, {"id": "5b0d4903-2366-490f-b649-5b20467a78af", "customerName": "Umpqua Roofing", "accountNumber": "08-0095972", "poNumber": "Intel Orange Lot", "pickupAddress": "7330 NE Ronler Drive, Hillsboro", "shipToAddress": "Danebo shop", "serviceDate": "2026-04-09", "amount": 1800.0, "contact": "James", "driver": "Jim 4/9", "notes": "", "billed": true}, {"id": "34eda001-0d39-4d4f-8527-618ff9e719b5", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591623", "pickupAddress": "33846 Looney Lane, Tangent", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-04-08", "amount": 309.5, "contact": "Bobby", "driver": "Jim 4/8", "notes": "", "billed": true}, {"id": "5d4f4c9a-ba75-4776-a697-5031ef518cc3", "customerName": "Harvey and Price", "accountNumber": "08-91746", "poNumber": "2530125", "pickupAddress": "2015 Nugget Way, Eugene", "shipToAddress": "3130 Chad Drive, Eugene", "serviceDate": "2026-04-06", "amount": 350.0, "contact": "Josh", "driver": "Jim 4/6", "notes": "", "billed": true}, {"id": "033a50f5-ffbd-48b8-8657-902f7920124e", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591356", "pickupAddress": "1100 Airport Lane, North Bend", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-04-02", "amount": 1004.25, "contact": "Jake", "driver": "Jim 4/2", "notes": "", "billed": true}, {"id": "030651e0-4170-490f-a835-ce3dd18fc5ee", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591354", "pickupAddress": "", "shipToAddress": "Florence", "serviceDate": "2026-04-01", "amount": 465.0, "contact": "", "driver": "Jim 4/1", "notes": "", "billed": true}, {"id": "145809a6-3418-4999-beb6-e787a29f1bed", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591287", "pickupAddress": "Mobile Mod yard", "shipToAddress": "2121 Madrona Street, North Bend", "serviceDate": "2026-03-31", "amount": 1004.25, "contact": "Troy", "driver": "Jim 3/31", "notes": "", "billed": true}, {"id": "5a4b1c72-449e-41cf-a809-3db6a99554f1", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "591240", "pickupAddress": "Mobile Mod yard", "shipToAddress": "2121 Madrona Street, North Bend", "serviceDate": "2026-03-30", "amount": 1004.25, "contact": "Troy", "driver": "Jim 3/30", "notes": "", "billed": true}, {"id": "551059f3-d658-4b34-b96f-56510700cee8", "customerName": "Ethan Penfold", "accountNumber": "cash to Jim", "poNumber": "", "pickupAddress": "84904 Laughlin", "shipToAddress": "3580 West 1st", "serviceDate": "2026-03-27", "amount": 450.0, "contact": "Ethan", "driver": "Jim 3/27", "notes": "", "billed": true}, {"id": "06e8afdf-2dbe-4bfa-9e67-dc27e7aa56af", "customerName": "Edge Construction", "accountNumber": "08-95130", "poNumber": "Warm Springs", "pickupAddress": "Bertelsen shop", "shipToAddress": "50 Chukar Road, Warm Springs", "serviceDate": "2026-03-25", "amount": 2400.0, "contact": "Troy", "driver": "Jim 3/25", "notes": "", "billed": true}, {"id": "878e1dbe-245f-4dc2-aa9b-0acbf1b1a2d5", "customerName": "Ralph Goodner", "accountNumber": "ran card", "poNumber": "", "pickupAddress": "24589 Warthen Road, Elmira", "shipToAddress": "", "serviceDate": "2026-03-24", "amount": 450.0, "contact": "Ralph", "driver": "Jim 3/24", "notes": "", "billed": true}, {"id": "e749e783-a9e4-4ca6-bae2-1d66da5c8842", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590936", "pickupAddress": "", "shipToAddress": "95224 Lillian Slough Lane, Coos Bay", "serviceDate": "2026-03-23", "amount": 780.0, "contact": "Nate", "driver": "Jim 3/23", "notes": "", "billed": true}, {"id": "bc06be1a-8610-4cee-a49a-bdd1be08c532", "customerName": "Austin Larsen", "accountNumber": "check to Jim", "poNumber": "", "pickupAddress": "86350 Bailey Hill Road, Eugene", "shipToAddress": "84674 Cloverdale Road, Creswell", "serviceDate": "2026-03-20", "amount": 750.0, "contact": "Austin", "driver": "Jim 3/20", "notes": "", "billed": true}, {"id": "163b9728-fd00-4688-bbd3-42c285b1d502", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590920", "pickupAddress": "", "shipToAddress": "5801 NW Way, Redmond", "serviceDate": "2026-03-20", "amount": 780.0, "contact": "Laura", "driver": "Jim 3/20", "notes": "", "billed": true}, {"id": "aea09723-dab9-434c-90ac-a15aa795efc5", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590933", "pickupAddress": "", "shipToAddress": "2400 Lincoln Street, Eugene", "serviceDate": "2026-03-19", "amount": 120.0, "contact": "Shane", "driver": "Jim 3/19", "notes": "", "billed": true}, {"id": "914660d7-ff68-4eb4-9b2f-e30e75c2ad12", "customerName": "Edge Construction", "accountNumber": "08-95130", "poNumber": "Vancouver Peace Health", "pickupAddress": "400 NE Mothers Joseph Place, Vancouver", "shipToAddress": "Bertelsen shop", "serviceDate": "2026-03-17", "amount": 1800.0, "contact": "Troy", "driver": "Jim 3/17", "notes": "", "billed": true}, {"id": "a4dd8095-acb7-4845-8df7-ff50935850d0", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2532-5188", "pickupAddress": "650 30th Street, Eugene", "shipToAddress": "175 Fairway Loop, Eugene", "serviceDate": "2026-03-16", "amount": 600.0, "contact": "John", "driver": "Jim 3/16", "notes": "", "billed": true}, {"id": "10aaa602-84d3-4957-b408-58a065bef019", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590734", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-03-13", "amount": 240.0, "contact": "Laura", "driver": "Jim 3/13", "notes": "", "billed": true}, {"id": "d7fc10e7-6c37-4374-a0d5-d7d35f87239f", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590486", "pickupAddress": "", "shipToAddress": "", "serviceDate": "2026-03-09", "amount": 120.0, "contact": "Danny", "driver": "Jim 3/9", "notes": "", "billed": true}, {"id": "5cff2152-23a9-4f5c-ba9a-739f965e0de7", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590485", "pickupAddress": "Mobile Mod yard", "shipToAddress": "2700 NW Stewart Parkway, Roseburg", "serviceDate": "2026-03-09", "amount": 480.0, "contact": "Johnny", "driver": "Jim 3/9", "notes": "", "billed": true}, {"id": "4250c07d-57a8-4bab-8953-cbfadfca0b87", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "590286", "pickupAddress": "5801 Old Salem Road Northeast, Albany", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-03-03", "amount": 240.0, "contact": "Darin", "driver": "Jim 3/3", "notes": "", "billed": true}, {"id": "e27a0a7c-7303-4295-9b51-243331dbf58e", "customerName": "Kevin Boris", "accountNumber": "cash", "poNumber": "", "pickupAddress": "", "shipToAddress": "24502 Bolton Hill Road, Veneta", "serviceDate": "2026-03-02", "amount": 600.0, "contact": "Kevin", "driver": "Jim 3/2", "notes": "", "billed": true}, {"id": "699850ea-8099-4979-b24c-6a5d8117c621", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "589134", "pickupAddress": "Mobile Mod yard", "shipToAddress": "700 Old Salem Road NE, Albany", "serviceDate": "2026-02-02", "amount": 240.0, "contact": "Jeff", "driver": "Jim 2/2", "notes": "", "billed": true}, {"id": "d5dfdc35-5b97-401e-8846-5b068f39a58f", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "589133", "pickupAddress": "Mobile Mod yard", "shipToAddress": "170 South Garden Way, Eugene", "serviceDate": "2026-02-03", "amount": 120.0, "contact": "Josh", "driver": "Jim 2/3", "notes": "", "billed": true}, {"id": "5c4c5ffd-49fd-4e72-bea1-965db5992ad4", "customerName": "Harvey and Price", "accountNumber": "08-91746", "poNumber": "2570275", "pickupAddress": "2015 Nugget Way, Eugene", "shipToAddress": "2121 Madrona Street, North Bend", "serviceDate": "2026-02-10", "amount": 1500.0, "contact": "Eric", "driver": "Brian 2/10", "notes": "40 ft", "billed": true}, {"id": "cb63b9c8-0141-4fab-8bad-50c74f78491c", "customerName": "Brothers Plumbing", "accountNumber": "08-91011", "poNumber": "25-0120", "pickupAddress": "575 West Oregon Avenue, Creswell", "shipToAddress": "55 Coburg Road, Eugene", "serviceDate": "2026-02-10", "amount": 500.0, "contact": "Tm", "driver": "Brian 2/10", "notes": "20 ft", "billed": true}, {"id": "a8b1714f-cbf9-4948-8c88-4d803ae4d550", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2529-5198", "pickupAddress": "650 30th Street, Springfield", "shipToAddress": "3300 Chad Drive, Eugene", "serviceDate": "2026-02-23", "amount": 300.0, "contact": "John", "driver": "Jim 2/23", "notes": "20 ft", "billed": true}, {"id": "ca8f1f1f-5fdd-4d2d-af67-81f219cbdd59", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "589739", "pickupAddress": "2727 Leo Harris Parkway, Eugene", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-02-25", "amount": 240.0, "contact": "Bob", "driver": "Brian 2/25", "notes": "20ft", "billed": true}, {"id": "ad55603a-daf2-4f7b-8380-32d0a33b03e8", "customerName": "Brothers Plumbing", "accountNumber": "08-91011", "poNumber": "", "pickupAddress": "1520 West 13th Avenue, Eugene", "shipToAddress": "575 West Oregon Avenue, Creswell", "serviceDate": "2026-01-05", "amount": 350.0, "contact": "Frank", "driver": "Jim 1/6", "notes": "40 ft", "billed": true}, {"id": "1113ae70-b221-4f28-89c3-5559c5e4d21d", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2401-5509", "pickupAddress": "1520 West 13th Avenue, Eugene", "shipToAddress": "650 30th Street, Springfield", "serviceDate": "2026-01-06", "amount": 350.0, "contact": "John", "driver": "Jim 1/6", "notes": "20 ft", "billed": true}, {"id": "a42deab2-a240-40c2-91c1-dfecbf7568e4", "customerName": "Heinz Selig", "accountNumber": "08-95474", "poNumber": "", "pickupAddress": "645 Powers Street, Eugene", "shipToAddress": "23846 Briggs Hill Road, Eugene", "serviceDate": "2026-01-08", "amount": 750.0, "contact": "Heinz", "driver": "Jim 1/8", "notes": "two 40 ft", "billed": true}, {"id": "3e69da8d-b166-47c1-bf29-e5c7ba50b1e7", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588201", "pickupAddress": "Mobile Mod yard", "shipToAddress": "82710 Maple Street, Dunes City", "serviceDate": "2026-01-09", "amount": 360.0, "contact": "Daphne", "driver": "Jim 1/9", "notes": "20 ft", "billed": true}, {"id": "960e5b55-dfcc-4600-a0de-4a23e39eb623", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2401-5509", "pickupAddress": "1520 West 13th Avenue, Eugene", "shipToAddress": "650 30th Street, Springfield", "serviceDate": "2026-01-12", "amount": 350.0, "contact": "John", "driver": "Jim 1/12", "notes": "20 ft", "billed": true}, {"id": "df210c87-fbf1-4667-8b24-f756aeb79259", "customerName": "New Way Electric", "accountNumber": "08-90028", "poNumber": "2026-5186", "pickupAddress": "6th street, Eugene", "shipToAddress": "650 30th Street, Springfield", "serviceDate": null, "amount": 1800.0, "contact": "John", "driver": "Jim 1/12-1/14", "notes": "three 40 ft and three 20 ft", "billed": true}, {"id": "0f3f3694-b1ef-412d-8702-2ca358d38501", "customerName": "Matthew Woodward", "accountNumber": "ran card", "poNumber": "", "pickupAddress": "Thurston", "shipToAddress": "Harrisburg", "serviceDate": "2026-01-13", "amount": 600.0, "contact": "Matthew", "driver": "Jim 1/13", "notes": "40 ft", "billed": true}, {"id": "be1c33ae-c580-4a69-a392-f8da1728b89a", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588134", "pickupAddress": "Mobile Mod yard", "shipToAddress": "1518 NW Lower Bridge Way, Terrebonne", "serviceDate": "2026-01-13", "amount": 780.0, "contact": "Cera", "driver": "Brian 1/13", "notes": "40ft", "billed": true}, {"id": "819c0992-89de-410e-9f8a-5dbf01d3587f", "customerName": "Richard Baldwin", "accountNumber": "ran card", "poNumber": "", "pickupAddress": "4055 Henderer Road, Elkton", "shipToAddress": "7693 Old Hwy 99 N, Roseburg", "serviceDate": "2026-01-16", "amount": 1500.0, "contact": "Jon Berk", "driver": "Jim 1/16", "notes": "two 40 ft", "billed": true}, {"id": "7f03b395-e114-474f-ae67-c8a781408c73", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588668", "pickupAddress": "Mobile Mod yard", "shipToAddress": "1063 Valley River Way, Eugene", "serviceDate": "2026-01-19", "amount": 120.0, "contact": "Danny", "driver": "Jim 1/19", "notes": "20 ft", "billed": true}, {"id": "bb807b8f-1254-4847-9fd9-0a01e48b627b", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588740", "pickupAddress": "Mobile Mod yard", "shipToAddress": "3859 Goldfish Farm Road SE, Albany", "serviceDate": "2026-01-22", "amount": 240.0, "contact": "Russ", "driver": "Jim 1/22", "notes": "20 ft", "billed": true}, {"id": "bbad8560-682e-483a-90ed-64b3d5507352", "customerName": "Dust Busters", "accountNumber": "ran card", "poNumber": "James 1/23/26", "pickupAddress": "1551 S Bertelsen", "shipToAddress": "89779 Monteith", "serviceDate": "2026-01-23", "amount": 1200.0, "contact": "James", "driver": "Jim 1/23", "notes": "four 40 ft", "billed": true}, {"id": "ec892041-98b5-4485-b343-e79835bedd82", "customerName": "NP Construction", "accountNumber": "08-95276", "poNumber": "Daniel 1/23/26", "pickupAddress": "805 Oak Street, Springfield", "shipToAddress": "29417 Willow Creek Road, Eugene", "serviceDate": "2026-01-23", "amount": 300.0, "contact": "Daniel", "driver": "Jim 1/23", "notes": "20 ft", "billed": true}, {"id": "f4907cbc-4a21-4f23-bfeb-b92829c0adb5", "customerName": "Mobile Modular", "accountNumber": "08-91744", "poNumber": "588889", "pickupAddress": "85830 Pine Grove Road, Eugene", "shipToAddress": "Mobile Mod Yard", "serviceDate": "2026-01-27", "amount": 120.0, "contact": "Danielle", "driver": "Jim 1/27", "notes": "40 ft", "billed": true}];
 
   /* ------------------------- state ------------------------- */
-  var state = { containers: [], customers: [], rentals: [], invoices: [], collections: [], hauls: [], salescontainers: [], quotes: [], dispatchcards: [], profiles: [] };
+  var state = { containers: [], customers: [], rentals: [], invoices: [], collections: [], hauls: [], salescontainers: [], quotes: [], dispatchcards: [], profiles: [], salesinvoices: [] };
   var ui = {
     tab: "dashboard",
     fleetQ: "", fleetFilter: "All", fleetType: "",
@@ -235,7 +236,8 @@
     haulQ: "", haulFilter: "all",
     salesQ: "", salesFilter: "all",
     quoteQ: "", quoteCatFilter: "all", quoteStatusFilter: "all",
-    dispatchViewMode: "month", dispatchRefDate: today(), dispatchDriverFilter: "all"
+    dispatchViewMode: "month", dispatchRefDate: today(), dispatchDriverFilter: "all",
+    salesBillQ: "", salesBillFilter: "all"
   };
 
   /* ------------------------- helpers ------------------------- */
@@ -377,7 +379,7 @@
     Object.keys(row).forEach(function (k) { out[toCamel(k)] = row[k]; });
     return out;
   }
-  var TABLE_KEYS = { containers: "id", customers: "id", rentals: "id", invoices: "id", collections: "account", hauls: "id", salescontainers: "id", quotes: "id", dispatchcards: "id", profiles: "email" };
+  var TABLE_KEYS = { containers: "id", customers: "id", rentals: "id", invoices: "id", collections: "account", hauls: "id", salescontainers: "id", quotes: "id", dispatchcards: "id", profiles: "email", salesinvoices: "id" };
 
   async function syncTable(table, rows) {
     var idField = TABLE_KEYS[table];
@@ -410,7 +412,8 @@
         syncTable("salescontainers", state.salescontainers),
         syncTable("quotes", state.quotes),
         syncTable("dispatchcards", state.dispatchcards),
-        syncTable("profiles", state.profiles)
+        syncTable("profiles", state.profiles),
+        syncTable("salesinvoices", state.salesinvoices)
       ]);
     } catch (e) {
       flash("Sync error — your change may not have saved: " + (e.message || e));
@@ -450,7 +453,8 @@
         sb.from("hauls").select("*"),
         sb.from("salescontainers").select("*"),
         sb.from("quotes").select("*"),
-        sb.from("dispatchcards").select("*")
+        sb.from("dispatchcards").select("*"),
+        sb.from("salesinvoices").select("*")
       ]);
       for (var i = 0; i < results.length; i++) if (results[i].error) throw results[i].error;
       state.containers = results[0].data.map(rowFromDb);
@@ -462,6 +466,7 @@
       state.salescontainers = results[6].data.map(rowFromDb);
       state.quotes = results[7].data.map(rowFromDb);
       state.dispatchcards = results[8].data.map(rowFromDb);
+      state.salesinvoices = results[9].data.map(rowFromDb);
       render();
     } catch (e) {
       flash("Couldn't load data from Supabase: " + (e.message || e));
@@ -490,7 +495,8 @@
         .on("postgres_changes", { event: "*", schema: "public", table: "salescontainers" }, function () { refresh("salescontainers"); })
         .on("postgres_changes", { event: "*", schema: "public", table: "quotes" }, function () { refresh("quotes"); })
         .on("postgres_changes", { event: "*", schema: "public", table: "dispatchcards" }, function () { refresh("dispatchcards"); })
-        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, function () { refresh("profiles"); });
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, function () { refresh("profiles"); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "salesinvoices" }, function () { refresh("salesinvoices"); });
     }
     realtimeChannel = channel.subscribe();
   }
@@ -743,10 +749,10 @@
 
   function resetAll() {
     var msg = sb
-      ? "Erase all containers, customers, rentals, invoices, collections, contract haul, sales inventory, quote, and dispatch data for the WHOLE TEAM in the shared database? This can't be undone. (Driver/staff access records are kept.)"
-      : "Erase all containers, customers, rentals, invoices, collections, contract haul, sales inventory, quote, and dispatch data? This can't be undone.";
+      ? "Erase all containers, customers, rentals, invoices, collections, contract haul, sales inventory, quote, dispatch, and sales billing data for the WHOLE TEAM in the shared database? This can't be undone. (Driver/staff access records are kept.)"
+      : "Erase all containers, customers, rentals, invoices, collections, contract haul, sales inventory, quote, dispatch, and sales billing data? This can't be undone.";
     if (!confirm(msg)) return;
-    state = { containers: [], customers: [], rentals: [], invoices: [], collections: [], hauls: [], salescontainers: [], quotes: [], dispatchcards: [], profiles: state.profiles };
+    state = { containers: [], customers: [], rentals: [], invoices: [], collections: [], hauls: [], salescontainers: [], quotes: [], dispatchcards: [], profiles: state.profiles, salesinvoices: [] };
     flash("All data cleared");
     commit();
   }
@@ -799,6 +805,7 @@
     else if (ui.tab === "sales-inv") renderSalesInv(v);
     else if (ui.tab === "quotes") renderQuotes(v);
     else if (ui.tab === "dispatch") renderDispatch(v);
+    else if (ui.tab === "sales-billing") renderSalesBilling(v);
     else if (ui.tab === "driver-access") renderDriverAccess(v);
 
     v.insertAdjacentHTML("beforeend",
@@ -1810,6 +1817,59 @@
     commit();
   }
 
+  /* --------------------------- sales billing --------------------------- */
+  function salesInvoiceById(id) {
+    for (var i = 0; i < state.salesinvoices.length; i++) if (state.salesinvoices[i].id === id) return state.salesinvoices[i];
+    return null;
+  }
+  function salesBillingList() {
+    var term = ui.salesBillQ.trim().toLowerCase();
+    return state.salesinvoices.filter(function (s) {
+      if (ui.salesBillFilter === "billed" && !s.billed) return false;
+      if (ui.salesBillFilter === "unbilled" && s.billed) return false;
+      if (!term) return true;
+      return [s.customerName, s.containerId].join(" ").toLowerCase().indexOf(term) !== -1;
+    }).sort(function (a, b) { return (b.confirmedDate || "").localeCompare(a.confirmedDate || ""); });
+  }
+  function renderSalesBilling(v) {
+    v.innerHTML =
+      '<div class="pagehead"><div><h2>Sales Billing<span class="count">' + state.salesinvoices.length + '</span></h2><div class="sub">Confirmed container sales, ready to invoice</div></div></div>' +
+      '<div class="toolbar"><div class="search"><input class="in" id="sales-bill-search" placeholder="Search customer or container…" value="' + esc(ui.salesBillQ) + '"></div></div>' +
+      '<div class="chips" style="margin-bottom:14px">' +
+      ["all", "unbilled", "billed"].map(function (s) {
+        return '<button class="chip ' + (ui.salesBillFilter === s ? "on" : "") + '" data-act="sales-bill-filter" data-filter="' + s + '">' + s.charAt(0).toUpperCase() + s.slice(1) + "</button>";
+      }).join("") + "</div>" +
+      '<div id="sales-bill-table"></div>' +
+      '<div class="count" id="sales-bill-count" style="margin-top:8px"></div>';
+    renderSalesBillingTable();
+  }
+  function renderSalesBillingTable() {
+    var list = salesBillingList();
+    var totalShown = list.reduce(function (s, x) { return s + (Number(x.salePrice) || 0); }, 0);
+    var unbilledShown = list.filter(function (x) { return !x.billed; }).reduce(function (s, x) { return s + (Number(x.salePrice) || 0); }, 0);
+    var rows = list.map(function (s) {
+      return "<tr>" +
+        '<td style="font-weight:600">' + esc(s.customerName) + "</td>" +
+        '<td class="cid">' + esc(s.containerId) + "</td>" +
+        '<td class="num">' + (s.confirmedDate || "—") + "</td>" +
+        '<td class="num money">' + money(s.salePrice, 0) + "</td>" +
+        "<td>" + (s.billed ? badge("Paid") : badge("Unpaid")) + "</td>" +
+        '<td class="right"><button class="btn sm ' + (s.billed ? "ghost" : "primary") + '" data-act="sales-bill-toggle" data-id="' + esc(s.id) + '">' + (s.billed ? "Unmark" : "Mark billed") + "</button></td></tr>";
+    }).join("");
+    if (!list.length) rows = '<tr><td colspan="6" class="empty-row">No confirmed sales yet — these show up once a dispatcher confirms a sale delivery.</td></tr>';
+    el("sales-bill-table").innerHTML =
+      '<div class="kpis" style="margin-bottom:16px">' +
+      '<div class="kpi" style="--accent:#1e4d3a"><div class="lbl">Sales shown</div><div class="val">' + list.length + "</div></div>" +
+      '<div class="kpi" style="--accent:#1f7a4d"><div class="lbl">Total shown</div><div class="val">' + moneyWhole(totalShown) + "</div></div>" +
+      '<div class="kpi" style="--accent:#946610"><div class="lbl">Unbilled shown</div><div class="val">' + moneyWhole(unbilledShown) + "</div></div></div>" +
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Customer</th><th>Container</th><th>Confirmed</th><th>Sale price</th><th>Status</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+    el("sales-bill-count").textContent = "Showing " + list.length + " of " + state.salesinvoices.length;
+  }
+  function salesInvoiceToggleBilled(id) {
+    state.salesinvoices = state.salesinvoices.map(function (s) { return s.id === id ? Object.assign({}, s, { billed: !s.billed }) : s; });
+    commit();
+  }
+
   /* --------------------------- sales inventory --------------------------- */
   var SALES_CONDITIONS = ["Excellent", "Good", "Fair", "Poor"];
 
@@ -2368,11 +2428,14 @@
         else if (c.containerId) statusNote = '<div class="subline" style="margin-top:8px;color:var(--ok)">Container: ' + esc(c.containerId) + (c.scanStatus === "matched" ? " — confirmed" : c.scanStatus === "assigned" ? " — assigned" : "") + "</div>";
         else statusNote = '<div class="subline" style="margin-top:8px">Container not captured yet — tap to scan</div>';
       }
+      var confirmNote = c.driverConfirmed
+        ? '<div class="subline" style="margin-top:6px;color:var(--ok)">\u2705 ' + esc(driverConfirmLabel(c.category)) + " — awaiting dispatcher</div>"
+        : '<div class="subline" style="margin-top:6px">Tap to ' + esc(driverConfirmLabel(c.category).toLowerCase()) + "</div>";
       return '<div class="card drag-card-off" data-act="driver-job-open" data-id="' + esc(c.id) + '" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + ');cursor:pointer">' +
         '<span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span>" +
         '<h3 style="margin:10px 0 4px">' + esc(c.customerName) + "</h3>" +
         '<div class="muted">' + esc(dispatchCardSummary(c)) + "</div>" +
-        statusNote +
+        statusNote + confirmNote +
         "</div>";
     }).join("");
     v.innerHTML =
@@ -2381,6 +2444,9 @@
   }
   function dispatchDriverAccentVar(cat) {
     return cat === "Rental Delivery" ? "ok" : cat === "Rental Return" ? "danger" : cat === "Sales" ? "rent" : "credit";
+  }
+  function driverConfirmLabel(cat) {
+    return cat === "Rental Return" ? "Mark as picked up" : cat === "Contract Haul" ? "Mark complete" : "Mark as delivered";
   }
   function driverJobModal(card) {
     if (!card) return;
@@ -2391,18 +2457,41 @@
       else if (card.scanStatus === "unrecognized") statusHtml = '<div class="banner">Scanned <span class="mono">' + esc(card.scannedValue || "") + '</span> — not recognized. Flagged for your dispatcher.</div>';
       else if (card.containerId) statusHtml = '<div class="formula" style="color:var(--ok)">Container ' + esc(card.containerId) + (card.scanStatus === "matched" ? " confirmed" : card.scanStatus === "assigned" ? " assigned to this job" : "") + "</div>";
     }
+    var confirmHtml;
+    if (card.driverConfirmed) {
+      confirmHtml = '<div class="formula" style="color:var(--ok)">\u2705 ' + driverConfirmLabel(card.category) + " — " + esc(card.actualDate || "") + "<br>Awaiting your dispatcher\u2019s confirmation.</div>";
+    } else {
+      confirmHtml =
+        '<button type="button" class="btn primary" style="width:100%" data-act="driver-confirm-job" data-id="' + esc(card.id) + '">' + esc(driverConfirmLabel(card.category)) + "</button>" +
+        '<div class="muted" style="font-size:12px;margin-top:6px;text-align:center">Records today\u2019s date (' + esc(formatDateDisplay(today())) + ") automatically.</div>";
+    }
     openModal(esc(card.customerName),
       '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
       statusHtml +
-      (needsContainer
+      (needsContainer && !card.driverConfirmed
         ? '<div class="fld"><label>Container</label>' +
           '<button type="button" class="btn primary" style="width:100%" data-act="driver-scan-start" data-id="' + esc(card.id) + '">\uD83D\uDCF7 Scan QR Code</button>' +
           '<div id="driver-scan-area" style="margin-top:10px"></div></div>' +
           '<div class="fld"><label>Or type the container ID</label>' +
           '<div style="display:flex;gap:8px"><input class="in mono" id="driver-manual-id" placeholder="e.g. REXU 1234567">' +
           '<button type="button" class="btn" data-act="driver-manual-submit" data-id="' + esc(card.id) + '">Submit</button></div></div>'
-        : ""),
+        : "") +
+      '<hr style="border:none;border-top:1px solid var(--line);margin:6px 0">' +
+      confirmHtml,
       '<button class="btn" data-act="modal-close">Close</button>');
+  }
+  function driverConfirmJob(cardId) {
+    var card = dispatchCardById(cardId);
+    if (!card) return;
+    var needsContainer = card.category !== "Contract Haul";
+    if (needsContainer && !card.containerId) return flash("Capture the container first — scan it or type the ID");
+    var actualDate = today();
+    var patch = { driverConfirmed: true, actualDate: actualDate };
+    state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === cardId ? Object.assign({}, c, patch) : c; });
+    render();
+    driverUpdateCardFields(cardId, patch);
+    flash(driverConfirmLabel(card.category) + " — sent to your dispatcher for confirmation.");
+    driverJobModal(dispatchCardById(cardId));
   }
   var DRIVER_SCAN_STREAM = null;
   function driverStopScan() {
@@ -2513,6 +2602,9 @@
   function renderDispatch(v) {
     v.innerHTML =
       '<div class="pagehead"><div><h2>Dispatch</h2><div class="sub">Approved jobs, scheduled onto drivers and dates</div></div></div>' +
+      '<div class="panel"><h3>Needs your confirmation<span class="count" id="dispatch-confirm-count"></span></h3>' +
+      '<p class="panel-sub">The driver has finished these — verify the container and date, then confirm to send them to billing.</p>' +
+      '<div id="dispatch-confirm-table"></div></div>' +
       '<div class="panel"><h3>Queue<span class="count" id="dispatch-queue-count"></span></h3>' +
       '<p class="panel-sub">Approved jobs with no date yet — assign one to put them on the calendar.</p>' +
       '<div id="dispatch-queue-table"></div></div>' +
@@ -2539,9 +2631,96 @@
       '<span class="badge b-ok">Rental delivery</span> <span class="badge b-danger">Rental return</span> <span class="badge b-rent">Sales</span> <span class="badge b-credit">Contract haul</span> ' +
       '<span class="muted" style="font-size:12.5px">👁 = released to driver · numbered dot = assigned driver</span>' +
       "</div></div>";
+    renderDispatchConfirmTable();
     renderDispatchQueueTable();
     renderDispatchCalendar();
     el("dispatch-view-label").textContent = dispatchViewLabel();
+  }
+  function dispatchCardsNeedingConfirmation() {
+    return state.dispatchcards.filter(function (c) { return c.driverConfirmed && !c.dispatcherConfirmed; })
+      .sort(function (a, b) { return (a.actualDate || "").localeCompare(b.actualDate || ""); });
+  }
+  function renderDispatchConfirmTable() {
+    var list = dispatchCardsNeedingConfirmation();
+    el("dispatch-confirm-count").textContent = list.length;
+    var rows = list.map(function (c) {
+      var flagged = c.scanStatus === "mismatch" || c.scanStatus === "unrecognized";
+      return "<tr>" +
+        '<td><span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span></td>" +
+        "<td>" + esc(c.customerName) + "</td>" +
+        '<td class="cid">' + (esc(c.containerId) || "—") + (flagged ? ' <span title="Scan was flagged">\u26A0</span>' : "") + "</td>" +
+        '<td class="num">' + (c.actualDate || "—") + "</td>" +
+        '<td class="right"><button class="btn sm primary" data-act="dispatch-confirm-open" data-id="' + esc(c.id) + '">Review &amp; confirm</button></td></tr>';
+    }).join("");
+    if (!list.length) rows = '<tr><td colspan="5" class="empty-row">Nothing waiting on you right now.</td></tr>';
+    el("dispatch-confirm-table").innerHTML =
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Type</th><th>Customer</th><th>Container</th><th>Actual date</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+  }
+  function dispatcherConfirmModal(card) {
+    if (!card) return;
+    var needsContainer = card.category !== "Contract Haul";
+    var flagged = card.scanStatus === "mismatch" || card.scanStatus === "unrecognized";
+    openModal("Confirm job — " + esc(card.customerName),
+      '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
+      (flagged ? '<div class="banner">Driver scanned <span class="mono">' + esc(card.scannedValue || "") + "</span> — " + (card.scanStatus === "mismatch" ? "doesn\u2019t match what was expected." : "wasn\u2019t recognized.") + " Double-check the container ID below before confirming.</div>" : "") +
+      (needsContainer ? '<div class="fld"><label>Container ID</label><input class="in mono" id="confirm-container" value="' + esc(card.containerId || "") + '"></div>' : "") +
+      '<div class="fld"><label>' + esc(driverConfirmLabel(card.category)) + " date</label>" +
+      '<div class="combo-wrap"><input type="hidden" id="confirm-date" value="' + esc(card.actualDate || today()) + '">' +
+      '<input class="in" id="confirm-date-display" readonly value="' + esc(formatDateDisplay(card.actualDate || today())) + '" data-act="quote-date-toggle" data-field="confirm-date" style="cursor:pointer">' +
+      '<div class="combo-list cal-panel" id="confirm-date-cal"></div></div></div>' +
+      '<div class="muted" style="font-size:12px">' + (card.category === "Rental Return"
+        ? "Billing will still use the originally requested return date for the credit — this date is for your own records."
+        : "Billing will use this date to calculate the first prorated invoice.") + "</div>",
+      '<button class="btn" data-act="modal-close">Cancel</button>' +
+      '<button class="btn primary" data-act="dispatch-confirm-job" data-id="' + esc(card.id) + '">Confirm &amp; send to billing</button>');
+  }
+  function dispatcherConfirmJob(cardId) {
+    var card = dispatchCardById(cardId);
+    if (!card) return;
+    var needsContainer = card.category !== "Contract Haul";
+    var containerId = needsContainer ? (el("confirm-container").value.trim()) : "";
+    if (needsContainer && !containerId) return flash("Enter the container ID before confirming");
+    var actualDate = el("confirm-date").value || card.actualDate || today();
+
+    if (card.category === "Rental Delivery") {
+      var q = card.sourceType === "quote" ? quoteById(card.sourceId) : null;
+      state.rentals.unshift({
+        id: uid(), containerId: containerId, customerId: card.customerId,
+        monthlyRate: q ? q.monthlyRate : (card.amount || 0), serviceFee: q ? q.serviceFee : 0,
+        startDate: actualDate, endDate: null,
+        poNumber: q ? q.poNumber : "", rentalNumber: "",
+        shipToAddress: card.shipToAddress || "", driver: card.driver || "", notes: "",
+        addedToRecurring: false
+      });
+    } else if (card.category === "Rental Return") {
+      var rental = card.sourceType === "rental" ? rentalById(card.sourceId) : null;
+      if (rental) {
+        state.rentals = state.rentals.map(function (r) {
+          return r.id === rental.id ? Object.assign({}, r, { endDate: rental.requestedReturnDate || actualDate, actualReturnDate: actualDate, containerId: containerId || r.containerId }) : r;
+        });
+      }
+    } else if (card.category === "Sales") {
+      state.salescontainers = state.salescontainers.map(function (c) { return c.id === containerId ? Object.assign({}, c, { status: "Sold" }) : c; });
+      var q2 = card.sourceType === "quote" ? quoteById(card.sourceId) : null;
+      state.salesinvoices.unshift({
+        id: uid(), customerId: card.customerId, customerName: card.customerName,
+        containerId: containerId, salePrice: q2 ? q2.salePrice : (card.amount || 0),
+        confirmedDate: actualDate, billed: false, notes: ""
+      });
+    } else if (card.category === "Contract Haul") {
+      state.hauls.unshift({
+        id: uid(), customerName: card.customerName, accountNumber: "", poNumber: "",
+        pickupAddress: card.pickupAddress || "", shipToAddress: card.shipToAddress || "",
+        serviceDate: actualDate, amount: card.amount || 0, contact: "", driver: card.driver || "", notes: "", billed: false
+      });
+    }
+
+    state.dispatchcards = state.dispatchcards.map(function (c) {
+      return c.id === cardId ? Object.assign({}, c, { containerId: containerId || c.containerId, actualDate: actualDate, dispatcherConfirmed: true }) : c;
+    });
+    closeModal();
+    flash("Confirmed — sent to billing");
+    commit();
   }
   function renderDispatchQueueTable() {
     var queue = dispatchCardsQueue();
@@ -2846,6 +3025,7 @@
       var val = el("driver-manual-id") ? el("driver-manual-id").value : "";
       driverCaptureContainer(id, val);
     },
+    "driver-confirm-job": function (t) { driverConfirmJob(t.getAttribute("data-id")); },
     "fleet-import-run": fleetImportRun,
     "fleet-filter": function (t) { ui.fleetFilter = t.getAttribute("data-status"); render(); },
     "cust-add": function () { custModal(null); },
@@ -2899,6 +3079,8 @@
     "haul-save": function (t) { haulSave(t.getAttribute("data-id")); },
     "haul-toggle-billed": function (t) { haulToggleBilled(t.getAttribute("data-id")); },
     "haul-filter": function (t) { ui.haulFilter = t.getAttribute("data-filter"); render(); },
+    "sales-bill-filter": function (t) { ui.salesBillFilter = t.getAttribute("data-filter"); render(); },
+    "sales-bill-toggle": function (t) { salesInvoiceToggleBilled(t.getAttribute("data-id")); },
     "sales-add": function () { salesModal(null); },
     "sales-edit": function (t) { salesModal(salesContainerById(t.getAttribute("data-id"))); },
     "sales-del": function (t) { salesDel(t.getAttribute("data-id")); },
@@ -2960,6 +3142,8 @@
     "dispatch-manage": function (t) { dispatchCardModal(dispatchCardById(t.getAttribute("data-id"))); },
     "dispatch-save": function (t) { dispatchCardSave(t.getAttribute("data-id")); },
     "dispatch-to-queue": function (t) { dispatchMoveToQueue(t.getAttribute("data-id")); },
+    "dispatch-confirm-open": function (t) { dispatcherConfirmModal(dispatchCardById(t.getAttribute("data-id"))); },
+    "dispatch-confirm-job": function (t) { dispatcherConfirmJob(t.getAttribute("data-id")); },
     "dispatch-view-mode": function (t) { ui.dispatchViewMode = t.getAttribute("data-mode"); render(); },
     "dispatch-nav-prev": function () { dispatchShiftRef(-1); render(); },
     "dispatch-nav-next": function () { dispatchShiftRef(1); render(); },
@@ -2989,6 +3173,7 @@
     else if (e.target.id === "cust-search") { ui.custQ = e.target.value; renderCustomersTable(); }
     else if (e.target.id === "coll-search") { ui.collQ = e.target.value; renderCollectionsTable(); }
     else if (e.target.id === "haul-search") { ui.haulQ = e.target.value; renderHaulTable(); }
+    else if (e.target.id === "sales-bill-search") { ui.salesBillQ = e.target.value; renderSalesBillingTable(); }
     else if (e.target.id === "sales-search") { ui.salesQ = e.target.value; renderSalesTable(); }
     else if (e.target.id === "quote-search") { ui.quoteQ = e.target.value; renderQuotesTable(); }
     else if (e.target.id === "r-cont-search") { el("r-cont").value = ""; renderContainerCombo(e.target.value); }
