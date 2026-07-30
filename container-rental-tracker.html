@@ -630,11 +630,8 @@
   function labelsToggleAll(checked) {
     Array.prototype.forEach.call(document.querySelectorAll(".label-check"), function (cb) { cb.checked = checked; });
   }
-  function labelsPrint(pool) {
-    var ids = Array.prototype.filter.call(document.querySelectorAll(".label-check"), function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
-    if (!ids.length) return flash("Pick at least one container to print");
-    var list = pool === "sales" ? state.salescontainers : state.containers;
-    var items = ids.map(function (id) { return list.find(function (c) { return c.id === id; }); }).filter(Boolean);
+  function printLabelItems(items, closeModalFirst) {
+    if (!items.length) return flash("Nothing to print");
     var win = window.open("", "_blank");
     if (!win) return flash("Your browser blocked the print window — allow pop-ups for this page and try again");
     var labelsHtml = items.map(function (c) {
@@ -651,9 +648,22 @@
       "</style></head><body><div class=\"qrgrid\">" + labelsHtml + "</div></body></html>"
     );
     win.document.close();
-    closeModal();
+    if (closeModalFirst) closeModal();
     flash("Opened " + items.length + " label(s) in a new tab — use your browser's print dialog");
     setTimeout(function () { win.focus(); win.print(); }, 400);
+  }
+  function labelsPrint(pool) {
+    var ids = Array.prototype.filter.call(document.querySelectorAll(".label-check"), function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
+    if (!ids.length) return flash("Pick at least one container to print");
+    var list = pool === "sales" ? state.salescontainers : state.containers;
+    var items = ids.map(function (id) { return list.find(function (c) { return c.id === id; }); }).filter(Boolean);
+    printLabelItems(items, true);
+  }
+  function printOneLabel(pool, id) {
+    var list = pool === "sales" ? state.salescontainers : state.containers;
+    var item = list.find(function (c) { return c.id === id; });
+    if (!item) return flash("Container not found");
+    printLabelItems([item], false);
   }
 
   function rentalById(id) {
@@ -893,6 +903,7 @@
         '<td class="num">' + (esc((r ? r.rentalNumber : c.rentalNumber) || "") || "—") + "</td>" +
         '<td class="num">' + (r ? money(r.monthlyRate, 0) : "—") + "</td>" +
         '<td class="right nowrap">' +
+        '<button class="btn sm ghost" data-act="print-one-label" data-pool="fleet" data-id="' + esc(c.id) + '">QR</button> ' +
         '<button class="btn sm ghost" data-act="fleet-edit" data-id="' + esc(c.id) + '">Edit</button>' +
         '<button class="btn sm ghost danger" data-act="fleet-del" data-id="' + esc(c.id) + '">Del</button></td></tr>';
     }).join("");
@@ -1870,6 +1881,7 @@
         "<td>" + badge(c.status) + "</td>" +
         "<td>" + reserveInfo + "</td>" +
         '<td class="right nowrap">' +
+        '<button class="btn sm ghost" data-act="print-one-label" data-pool="sales" data-id="' + esc(c.id) + '">QR</button> ' +
         '<button class="btn sm ghost" data-act="sales-edit" data-id="' + esc(c.id) + '">Edit</button>' +
         '<button class="btn sm ghost danger" data-act="sales-del" data-id="' + esc(c.id) + '">Del</button></td></tr>';
     }).join("");
@@ -2818,6 +2830,7 @@
     "fleet-import": fleetImportModal,
     "labels-open": function (t) { labelsModal(t.getAttribute("data-pool")); },
     "labels-print": function (t) { labelsPrint(t.getAttribute("data-pool")); },
+    "print-one-label": function (t) { printOneLabel(t.getAttribute("data-pool"), t.getAttribute("data-id")); },
     "driver-job-open": function (t) { driverJobModal(dispatchCardById(t.getAttribute("data-id"))); },
     "driver-scan-start": function (t) { driverStartScan(t.getAttribute("data-id")); },
     "driver-manual-submit": function (t) {
