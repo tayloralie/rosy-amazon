@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Western Mobile Storage — Rental & Billing Tracker</title>
+<title>Western Mobile Storage</title>
 <style>
   :root {
     --bg:#eef1ec; --surface:#ffffff; --surface-2:#f5f7f3; --ink:#161d18;
@@ -262,7 +262,13 @@
   function formatDateDisplay(iso) {
     if (!iso) return "";
     var p = parts(iso);
-    return new Date(p.y, p.m - 1, p.d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return String(p.m).padStart(2, "0") + "/" + String(p.d).padStart(2, "0") + "/" + p.y;
+  }
+  function fmtDate(iso) {
+    if (!iso) return iso;
+    var p = parts(iso);
+    if (!p.y || !p.m || !p.d) return iso;
+    return String(p.m).padStart(2, "0") + "/" + String(p.d).padStart(2, "0") + "/" + p.y;
   }
   var CAL_VIEW_MONTH = {};
   function calendarMonthLabel(ym) {
@@ -356,11 +362,12 @@
   function dailyRate(monthlyFee, dateStr) { return (Number(monthlyFee) || 0) / daysInMonthOf(dateStr); }
   function remainingDaysAfter(dateStr) { return daysInMonthOf(dateStr) - dayOfMonth(dateStr); }
   function nextMonthProrate(monthlyFee, deliveryDateStr) {
-    return round2(dailyRate(monthlyFee, deliveryDateStr) * remainingDaysAfter(deliveryDateStr));
+    return round0(dailyRate(monthlyFee, deliveryDateStr) * remainingDaysAfter(deliveryDateStr));
   }
   function returnProrateCredit(monthlyFee, returnDateStr) {
-    return round2(dailyRate(monthlyFee, returnDateStr) * remainingDaysAfter(returnDateStr));
+    return round0(dailyRate(monthlyFee, returnDateStr) * remainingDaysAfter(returnDateStr));
   }
+  function round0(n) { return Math.round(n); }
   function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
   function monthsElapsedCalendar(startDateStr, asOfStr) {
     var s = parts(startDateStr), a = parts(asOfStr);
@@ -609,6 +616,7 @@
     return null;
   }
   function customerName(id) { var c = customerById(id); return c ? c.name : "—"; }
+  function customerAccountNumber(id) { var c = customerById(id); return c && c.accountNumber ? c.accountNumber : ""; }
   function containerLabel(id) {
     for (var i = 0; i < state.containers.length; i++) if (state.containers[i].id === id) return state.containers[i].id;
     return id;
@@ -1151,7 +1159,7 @@
       var returnAction = "";
       if (!r.endDate) {
         returnAction = returnCard
-          ? '<span class="badge b-danger">Return scheduled' + (returnCard.scheduledDate ? " " + returnCard.scheduledDate : "") + "</span>"
+          ? '<span class="badge b-danger">Return scheduled' + (returnCard.scheduledDate ? " " + fmtDate(returnCard.scheduledDate) : "") + "</span>"
           : '<button class="btn sm" data-act="rental-schedule-return" data-id="' + esc(r.id) + '">Schedule return</button>';
       }
       return "<tr>" +
@@ -1160,7 +1168,7 @@
         (refs.length ? '<div class="subline mono">' + esc(refs.join(" · ")) + "</div>" : "") + "</td>" +
         '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
         '<td class="num muted">' + (r.serviceFee ? money(r.serviceFee, 0) : "—") + "</td>" +
-        '<td class="num">' + r.startDate + "</td>" +
+        '<td class="num">' + fmtDate(r.startDate) + "</td>" +
         '<td class="num">' + endCell + "</td>" +
         "<td>" + (recurBadge || "—") + "</td>" +
         '<td class="right nowrap">' +
@@ -1398,7 +1406,7 @@
     var ym = monthKey(r.startDate);
     if (invoiceExists(rentalId, "initial", null)) return flash("First invoice already generated for this rental");
     var prorate = nextMonthProrate(r.monthlyRate, r.startDate);
-    var amount = round2((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
+    var amount = round0((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
     var meta = invoiceMeta(r);
     state.invoices.push({
       id: uid(), number: nextInvoiceNumber(), kind: "initial", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
@@ -1406,7 +1414,7 @@
       periodMonth: ym, serviceFee: r.serviceFee || 0, baseRate: r.monthlyRate, prorate: prorate,
       amount: amount, issueDate: today(), dueDate: today(), status: "unpaid", paidDate: null
     });
-    flash("Generated first invoice — " + money(amount) + " for " + customerName(r.customerId));
+    flash("Generated first invoice — " + money(amount, 0) + " for " + customerName(r.customerId));
     commit();
   }
   function generateAllNewRentalInvoices(ym) {
@@ -1414,7 +1422,7 @@
     if (!list.length) return flash("Nothing new to invoice for " + monthLabel(ym));
     list.forEach(function (r) {
       var prorate = nextMonthProrate(r.monthlyRate, r.startDate);
-      var amount = round2((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
+      var amount = round0((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
       var meta = invoiceMeta(r);
       state.invoices.push({
         id: uid(), number: nextInvoiceNumber(), kind: "initial", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
@@ -1480,7 +1488,7 @@
         accountNumber: meta.accountNumber, poNumber: meta.poNumber, rentalNumber: meta.rentalNumber,
         periodMonth: ym, baseRate: r.monthlyRate, amount: -credit, issueDate: today(), dueDate: today(), status: "applied", paidDate: null
       });
-      flash("Issued credit (" + money(credit) + ") for " + customerName(r.customerId));
+      flash("Issued credit (" + money(credit, 0) + ") for " + customerName(r.customerId));
     }
     commit();
   }
@@ -1543,6 +1551,10 @@
     }
   }
 
+  function customerCellHtml(customerId) {
+    var acct = customerAccountNumber(customerId);
+    return esc(customerName(customerId)) + (acct ? '<div class="subline mono">Acct ' + esc(acct) + "</div>" : "");
+  }
   function renderBilling(v) {
     var ym = ui.billMonth;
     var newList = newRentalsForMonth(ym);
@@ -1555,18 +1567,18 @@
     var newRows = newList.map(function (r) {
       var existingInv = state.invoices.find(function (i) { return i.rentalId === r.id && i.kind === "initial"; });
       var prorate = nextMonthProrate(r.monthlyRate, r.startDate);
-      var total = round2((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
+      var total = round0((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
       var actionBtn = existingInv
         ? '<button class="btn sm ' + (existingInv.status === "paid" ? "ghost" : "danger") + '" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">' + (existingInv.status === "paid" ? "Paid — locked" : "Undo") + "</button>"
         : '<button class="btn sm primary" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">Done</button>';
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
-        "<td>" + esc(customerName(r.customerId)) + "</td>" +
-        '<td class="num">' + r.startDate + "</td>" +
+        "<td>" + customerCellHtml(r.customerId) + "</td>" +
+        '<td class="num">' + fmtDate(r.startDate) + "</td>" +
         '<td class="num">' + money(r.serviceFee || 0, 0) + "</td>" +
         '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
-        '<td class="num">' + money(prorate) + "</td>" +
-        '<td class="num money">' + money(total) + "</td>" +
+        '<td class="num">' + money(prorate, 0) + "</td>" +
+        '<td class="num money">' + money(total, 0) + "</td>" +
         "<td>" + actionBtn + "</td></tr>";
     }).join("");
     if (!newList.length) newRows = '<tr><td colspan="8" class="empty-row">No new rentals delivered in ' + monthLabel(ym) + ".</td></tr>";
@@ -1582,9 +1594,9 @@
       var removedBtn = '<button class="btn sm ' + (!r.addedToRecurring ? "primary" : "ghost") + '" data-act="bill-return-removed" data-id="' + esc(r.id) + '">Removed from Recurring</button>';
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
-        "<td>" + esc(customerName(r.customerId)) + "</td>" +
-        '<td class="num">' + r.endDate + "</td>" +
-        '<td class="num" style="color:var(--credit)">-' + money(credit) + "</td>" +
+        "<td>" + customerCellHtml(r.customerId) + "</td>" +
+        '<td class="num">' + fmtDate(r.endDate) + "</td>" +
+        '<td class="num" style="color:var(--credit)">-' + money(credit, 0) + "</td>" +
         '<td class="num">' + money(r.serviceFee || 0, 0) + "</td>" +
         '<td class="right nowrap">' + billedBtn + " " + creditBtn + " " + removedBtn + "</td></tr>";
     }).join("");
@@ -1599,8 +1611,8 @@
         : '<button class="btn sm primary" data-act="bill-mark-recurring" data-id="' + esc(r.id) + '">Mark added to recurring</button>';
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
-        "<td>" + esc(customerName(r.customerId)) + "</td>" +
-        '<td class="num">' + r.startDate + "</td>" +
+        "<td>" + customerCellHtml(r.customerId) + "</td>" +
+        '<td class="num">' + fmtDate(r.startDate) + "</td>" +
         '<td class="num">' + elapsed + " mo</td>" +
         '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
         '<td class="right">' + actionBtn + "</td></tr>";
@@ -1615,7 +1627,7 @@
         : '<button class="btn sm primary" data-act="bill-recurring-toggle" data-id="' + esc(r.id) + '">Bill</button>';
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
-        "<td>" + esc(customerName(r.customerId)) + "</td>" +
+        "<td>" + customerCellHtml(r.customerId) + "</td>" +
         '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
         '<td class="right">' + actionBtn + "</td></tr>";
     }).join("");
@@ -1680,7 +1692,7 @@
         '<td style="font-weight:600">' + esc(c.name) + '<div class="subline mono">' + esc(c.account) + "</div></td>" +
         '<td class="num money" style="color:var(--danger)">' + money(c.balance) + "</td>" +
         '<td><select class="in coll-stage-select" data-id="' + esc(c.account) + '" style="min-width:170px">' + opt(COLLECTION_STAGES, c.stage || "New") + "</select></td>" +
-        '<td class="muted" style="max-width:240px">' + (lastNote ? esc(lastNote.text) + '<div class="subline">' + lastNote.date + "</div>" : "—") + "</td>" +
+        '<td class="muted" style="max-width:240px">' + (lastNote ? esc(lastNote.text) + '<div class="subline">' + fmtDate(lastNote.date) + "</div>" : "—") + "</td>" +
         '<td class="num">' + (esc(c.phone) || "—") + "</td>" +
         '<td class="right nowrap"><button class="btn sm ghost" data-act="coll-notes" data-id="' + esc(c.account) + '">Notes (' + noteCount + ")</button></td>" +
         "</tr>";
@@ -1702,7 +1714,7 @@
     var notes = (c.notes || []).slice().reverse();
     var notesHTML = notes.length
       ? '<div class="list">' + notes.map(function (n) {
-          return '<div class="listrow" style="align-items:flex-start"><div><div>' + esc(n.text) + '</div><div class="subline mono">' + n.date + "</div></div></div>";
+          return '<div class="listrow" style="align-items:flex-start"><div><div>' + esc(n.text) + '</div><div class="subline mono">' + fmtDate(n.date) + "</div></div></div>";
         }).join("") + "</div>"
       : '<p class="muted" style="margin:0">No notes yet.</p>';
     openModal(esc(c.name) + " — notes",
@@ -1770,7 +1782,7 @@
       var route = [h.pickupAddress, h.shipToAddress].filter(Boolean).join(" → ") || "—";
       return "<tr>" +
         '<td style="font-weight:600">' + esc(h.customerName) + (refs.length ? '<div class="subline mono">' + esc(refs.join(" · ")) + "</div>" : "") + "</td>" +
-        '<td class="num">' + (h.serviceDate || "—") + "</td>" +
+        '<td class="num">' + (h.serviceDate ? fmtDate(h.serviceDate) : "—") + "</td>" +
         '<td style="max-width:260px">' + esc(route) + "</td>" +
         '<td class="num">' + (esc(h.driver) || "—") + "</td>" +
         '<td class="num money">' + money(h.amount) + "</td>" +
@@ -1864,10 +1876,11 @@
     var totalShown = list.reduce(function (s, x) { return s + (Number(x.salePrice) || 0); }, 0);
     var unbilledShown = list.filter(function (x) { return !x.billed; }).reduce(function (s, x) { return s + (Number(x.salePrice) || 0); }, 0);
     var rows = list.map(function (s) {
+      var acct = customerAccountNumber(s.customerId);
       return "<tr>" +
-        '<td style="font-weight:600">' + esc(s.customerName) + "</td>" +
+        '<td style="font-weight:600">' + esc(s.customerName) + (acct ? '<div class="subline mono">Acct ' + esc(acct) + "</div>" : "") + "</td>" +
         '<td class="cid">' + esc(s.containerId) + "</td>" +
-        '<td class="num">' + (s.confirmedDate || "—") + "</td>" +
+        '<td class="num">' + (s.confirmedDate ? fmtDate(s.confirmedDate) : "—") + "</td>" +
         '<td class="num money">' + money(s.salePrice, 0) + "</td>" +
         "<td>" + (s.billed ? badge("Paid") : badge("Unpaid")) + "</td>" +
         '<td class="right"><button class="btn sm ' + (s.billed ? "ghost" : "primary") + '" data-act="sales-bill-toggle" data-id="' + esc(s.id) + '">' + (s.billed ? "Unmark" : "Mark billed") + "</button></td></tr>";
@@ -2078,7 +2091,7 @@
         '<td><span class="badge ' + quoteCatBadgeClass(q.category) + '">' + esc(q.category) + "</span></td>" +
         "<td>" + esc(sizeDisplay) + "</td>" +
         "<td>" + (salesCont ? esc(salesCont.condition) : "—") + "</td>" +
-        '<td class="num">' + (q.requestedDate || "—") + "</td>" +
+        '<td class="num">' + (q.requestedDate ? fmtDate(q.requestedDate) : "—") + "</td>" +
         '<td class="num money">' + money(quoteAmount(q), 0) + "</td>" +
         "<td>" + (q.status === "Approved" ? badge("Paid") : q.status === "Declined" ? badge("Out of Service") : badge("Draft")) + "</td>" +
         '<td class="right nowrap">' + actions + "</td></tr>";
@@ -2195,9 +2208,9 @@
     });
   }
   function quoteLineItemSummary(item) {
-    if (item.category === "Rental") return esc(item.containerType) + " — " + money(item.monthlyRate, 0) + "/mo + " + money(item.serviceFee, 0) + " fee" + (item.requestedDate ? " — delivery " + item.requestedDate : "");
-    if (item.category === "Sales") return esc(item.salesContainerId) + " — " + money(item.salePrice, 0) + (item.requestedDate ? " — delivery " + item.requestedDate : "");
-    return (item.containerType ? esc(item.containerType) + " haul from " : "Haul from ") + esc(item.pickupAddress || "?") + " — " + money(item.haulAmount, 0) + (item.requestedDate ? " — service " + item.requestedDate : "");
+    if (item.category === "Rental") return esc(item.containerType) + " — " + money(item.monthlyRate, 0) + "/mo + " + money(item.serviceFee, 0) + " fee" + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
+    if (item.category === "Sales") return esc(item.salesContainerId) + " — " + money(item.salePrice, 0) + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
+    return (item.containerType ? esc(item.containerType) + " haul from " : "Haul from ") + esc(item.pickupAddress || "?") + " — " + money(item.haulAmount, 0) + (item.requestedDate ? " — service " + fmtDate(item.requestedDate) : "");
   }
   var QUOTE_LINE_ITEM_EDIT_INDEX = null;
   function renderQuoteLineItemsList() {
@@ -2407,7 +2420,7 @@
     state.quotes = state.quotes.map(function (x) { return x.id === id ? Object.assign({}, x, { status: "Approved", approvedDate: today() }) : x; });
     var card = dispatchCardFromQuote(q);
     state.dispatchcards.unshift(card);
-    flash("Quote " + q.quoteNumber + " approved — added to the dispatch " + (card.scheduledDate ? "calendar (" + card.scheduledDate + ")" : "queue"));
+    flash("Quote " + q.quoteNumber + " approved — added to the dispatch " + (card.scheduledDate ? "calendar (" + fmtDate(card.scheduledDate) + ")" : "queue"));
     commit();
   }
   function quoteDecline(id) {
@@ -2431,7 +2444,7 @@
       else statusNote = '<div class="subline" style="margin-top:8px">Container not captured yet — tap to scan</div>';
     }
     var confirmNote = c.driverConfirmed
-      ? '<div class="subline" style="margin-top:6px;color:var(--ok)">\u2705 ' + esc(driverConfirmLabel(c.category)) + " — " + esc(c.actualDate || "") + (c.dispatcherConfirmed ? " — confirmed by dispatcher" : " — awaiting dispatcher") + "</div>"
+      ? '<div class="subline" style="margin-top:6px;color:var(--ok)">\u2705 ' + esc(driverConfirmLabel(c.category)) + " — " + esc(fmtDate(c.actualDate) || "") + (c.dispatcherConfirmed ? " — confirmed by dispatcher" : " — awaiting dispatcher") + "</div>"
       : '<div class="subline" style="margin-top:6px">Tap to ' + esc(driverConfirmLabel(c.category).toLowerCase()) + "</div>";
     return '<div class="card drag-card-off" data-act="driver-job-open" data-id="' + esc(c.id) + '" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + (c.driverConfirmed ? ");opacity:.75" : ")") + ';cursor:pointer">' +
       '<span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span>" +
@@ -2480,7 +2493,7 @@
     }
     var confirmHtml;
     if (card.driverConfirmed) {
-      confirmHtml = '<div class="formula" style="color:var(--ok)">\u2705 ' + driverConfirmLabel(card.category) + " — " + esc(card.actualDate || "") + "<br>Awaiting your dispatcher\u2019s confirmation.</div>";
+      confirmHtml = '<div class="formula" style="color:var(--ok)">\u2705 ' + driverConfirmLabel(card.category) + " — " + esc(fmtDate(card.actualDate) || "") + "<br>Awaiting your dispatcher\u2019s confirmation.</div>";
     } else {
       confirmHtml =
         '<button type="button" class="btn primary" style="width:100%" data-act="driver-confirm-job" data-id="' + esc(card.id) + '">' + esc(driverConfirmLabel(card.category)) + "</button>" +
@@ -2676,7 +2689,7 @@
         '<td><span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span></td>" +
         "<td>" + esc(c.customerName) + "</td>" +
         '<td class="cid">' + (esc(c.containerId) || "—") + (flagged ? ' <span title="Scan was flagged">\u26A0</span>' : "") + "</td>" +
-        '<td class="num">' + (c.actualDate || "—") + "</td>" +
+        '<td class="num">' + (c.actualDate ? fmtDate(c.actualDate) : "—") + "</td>" +
         '<td class="right"><button class="btn sm primary" data-act="dispatch-confirm-open" data-id="' + esc(c.id) + '">Review &amp; confirm</button></td></tr>';
     }).join("");
     if (!list.length) rows = '<tr><td colspan="5" class="empty-row">Nothing waiting on you right now.</td></tr>';
@@ -2758,7 +2771,7 @@
         "<td>" + esc(c.customerName) + "</td>" +
         "<td>" + esc(dispatchCardSummary(c)) + "</td>" +
         '<td class="num money">' + money(c.amount, 0) + "</td>" +
-        '<td class="num">' + (c.requestedDate || "—") + "</td>" +
+        '<td class="num">' + (c.requestedDate ? fmtDate(c.requestedDate) : "—") + "</td>" +
         '<td class="right"><button class="btn sm primary" data-act="dispatch-schedule" data-id="' + esc(c.id) + '">Schedule</button></td></tr>';
     }).join("");
     if (!queue.length) rows = '<tr><td colspan="6" class="empty-row">Nothing waiting — everything approved has a date.</td></tr>';
