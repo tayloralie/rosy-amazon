@@ -46,6 +46,7 @@
 
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   @media (max-width:720px){ .grid2 { grid-template-columns:1fr; } }
+  @media (max-width:480px){ .overlay { padding:12px 8px; } .modal-body { max-height:80vh; } }
   .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:18px; }
   .panel h3 { margin:0 0 4px; font-size:14px; font-weight:650; }
   .panel .panel-sub { margin:0 0 12px; font-size:12.5px; color:var(--muted); }
@@ -2484,12 +2485,18 @@
       '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
       statusHtml +
       (needsContainer && !card.driverConfirmed
-        ? '<div class="fld"><label>Container</label>' +
-          '<button type="button" class="btn primary" style="width:100%" data-act="driver-scan-start" data-id="' + esc(card.id) + '">\uD83D\uDCF7 Scan QR Code</button>' +
-          '<div id="driver-scan-area" style="margin-top:10px"></div></div>' +
-          '<div class="fld"><label>Or type the container ID</label>' +
-          '<div style="display:flex;gap:8px"><input class="in mono" id="driver-manual-id" placeholder="e.g. REXU 1234567">' +
-          '<button type="button" class="btn" data-act="driver-manual-submit" data-id="' + esc(card.id) + '">Submit</button></div></div>'
+        ? (card.containerId
+            ? '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+              '<button type="button" class="btn sm ghost" data-act="driver-scan-start" data-id="' + esc(card.id) + '">\uD83D\uDCF7 Re-scan</button>' +
+              '<input class="in mono" id="driver-manual-id" placeholder="or type container ID" style="flex:1;min-width:140px">' +
+              '<button type="button" class="btn sm" data-act="driver-manual-submit" data-id="' + esc(card.id) + '">Submit</button></div>' +
+              '<div id="driver-scan-area" style="margin-top:10px"></div>'
+            : '<div class="fld"><label>Container</label>' +
+              '<button type="button" class="btn primary" style="width:100%" data-act="driver-scan-start" data-id="' + esc(card.id) + '">\uD83D\uDCF7 Scan QR Code</button>' +
+              '<div id="driver-scan-area" style="margin-top:10px"></div></div>' +
+              '<div class="fld"><label>Or type the container ID</label>' +
+              '<div style="display:flex;gap:8px"><input class="in mono" id="driver-manual-id" placeholder="e.g. REXU 1234567">' +
+              '<button type="button" class="btn" data-act="driver-manual-submit" data-id="' + esc(card.id) + '">Submit</button></div></div>')
         : "") +
       '<hr style="border:none;border-top:1px solid var(--line);margin:6px 0">' +
       confirmHtml,
@@ -2522,7 +2529,7 @@
       area.innerHTML = '<div class="muted" style="color:var(--danger);font-size:12.5px">Camera access isn\u2019t available in this browser — use the manual entry below.</div>';
       return;
     }
-    area.innerHTML = '<video id="driver-scan-video" style="width:100%;border-radius:8px;background:#000" playsinline muted></video>' +
+    area.innerHTML = '<video id="driver-scan-video" style="width:100%;max-height:45vh;border-radius:8px;background:#000;object-fit:cover" playsinline muted></video>' +
       '<div class="muted" style="font-size:12px;margin-top:6px">Point the camera at the QR code.</div>';
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function (stream) {
       DRIVER_SCAN_STREAM = stream;
