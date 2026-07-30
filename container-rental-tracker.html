@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Western Mobile Storage</title>
+<title>Western Mobile Storage — Rental & Billing Tracker</title>
 <style>
   :root {
     --bg:#eef1ec; --surface:#ffffff; --surface-2:#f5f7f3; --ink:#161d18;
@@ -204,7 +204,9 @@
   var SUPABASE_URL = "https://ufipqwxmkhyojvrfijfw.supabase.co";
   var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmaXBxd3hta2h5b2p2cmZpamZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTE5NTIsImV4cCI6MjEwMDMyNzk1Mn0.2kJcSZBrrr0HegVkMzfOzAWINE1adtQC_LG53G5LpEg";
   var sb = (window.supabase && SUPABASE_URL.indexOf("YOUR_SUPABASE_URL") !== 0 && SUPABASE_ANON_KEY.indexOf("YOUR_SUPABASE_ANON_KEY") !== 0)
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage, storageKey: "wms-tracker-auth" }
+      })
     : null;
 
   /* ------------------------- constants ------------------------- */
@@ -1150,8 +1152,6 @@
       var refs = [];
       if (r.rentalNumber) refs.push("Rental " + r.rentalNumber);
       if (r.poNumber) refs.push("PO " + r.poNumber);
-      var recurBadge = "";
-      if (!r.endDate) recurBadge = r.addedToRecurring ? badge("Yes") : badge("Pending");
       var endCell = r.endDate
         ? '<input class="in mono rental-end-input" type="date" data-id="' + esc(r.id) + '" value="' + esc(r.endDate) + '" style="min-width:150px">'
         : '<span class="badge b-rent">active</span>';
@@ -1170,15 +1170,14 @@
         '<td class="num muted">' + (r.serviceFee ? money(r.serviceFee, 0) : "—") + "</td>" +
         '<td class="num">' + fmtDate(r.startDate) + "</td>" +
         '<td class="num">' + endCell + "</td>" +
-        "<td>" + (recurBadge || "—") + "</td>" +
         '<td class="right nowrap">' +
         returnAction +
         "</td></tr>";
     }).join("");
-    if (!shown.length) rows = '<tr><td colspan="8" class="empty-row">No ' + ui.rentalView + " rentals match.</td></tr>";
+    if (!shown.length) rows = '<tr><td colspan="7" class="empty-row">No ' + ui.rentalView + " rentals match.</td></tr>";
     el("rentals-table").innerHTML =
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Rate/mo</th><th>Service fee</th><th>Start</th><th>' +
-      (ui.rentalView === "active" ? "" : "End (editable)") + "</th><th>Recurring?</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+      (ui.rentalView === "active" ? "" : "End (editable)") + "</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     var countEl = el("rentals-count");
     if (countEl) countEl.textContent = "Showing " + shown.length + " of " + state.rentals.filter(function (r) { return ui.rentalView === "active" ? !r.endDate : r.endDate; }).length;
   }
