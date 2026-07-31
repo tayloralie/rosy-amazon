@@ -109,8 +109,9 @@
   .fld label { display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:.4px; }
   .row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 
-  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:11px 18px; border-radius:8px; font-size:13.5px; z-index:100; box-shadow:0 8px 24px rgba(0,0,0,.25); opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:11px 18px; border-radius:8px; font-size:13.5px; z-index:100; box-shadow:0 8px 24px rgba(0,0,0,.25); opacity:0; transition:opacity .2s; pointer-events:none; max-width:80vw; }
   .toast.show { opacity:1; }
+  .toast.err { background:var(--danger); }
   .list { display:flex; flex-direction:column; gap:8px; }
   .listrow { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
   .bar { height:8px; background:var(--surface-2); border-radius:20px; overflow:hidden; margin-top:8px; }
@@ -336,7 +337,7 @@
     var v = Number(n) || 0;
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: dp, maximumFractionDigits: dp }).format(v);
   }
-  function moneyWhole(n) { return money(n, 0); }
+  function moneyWhole(n) { return money(n); }
   function monthLabel(ym) {
     if (!ym) return "";
     var p = ym.split("-");
@@ -367,10 +368,10 @@
   function dailyRate(monthlyFee, dateStr) { return (Number(monthlyFee) || 0) / daysInMonthOf(dateStr); }
   function remainingDaysAfter(dateStr) { return daysInMonthOf(dateStr) - dayOfMonth(dateStr); }
   function nextMonthProrate(monthlyFee, deliveryDateStr) {
-    return round0(dailyRate(monthlyFee, deliveryDateStr) * remainingDaysAfter(deliveryDateStr));
+    return round2(dailyRate(monthlyFee, deliveryDateStr) * remainingDaysAfter(deliveryDateStr));
   }
   function returnProrateCredit(monthlyFee, returnDateStr) {
-    return round0(dailyRate(monthlyFee, returnDateStr) * remainingDaysAfter(returnDateStr));
+    return round2(dailyRate(monthlyFee, returnDateStr) * remainingDaysAfter(returnDateStr));
   }
   function round0(n) { return Math.round(n); }
   function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
@@ -429,7 +430,7 @@
         syncTable("salesinvoices", state.salesinvoices)
       ]);
     } catch (e) {
-      flash("Sync error — your change may not have saved: " + (e.message || e));
+      flash("Sync error — your change may not have saved: " + (e.message || e), true);
     }
   }
 
@@ -482,7 +483,7 @@
       state.salesinvoices = results[9].data.map(rowFromDb);
       render();
     } catch (e) {
-      flash("Couldn't load data from Supabase: " + (e.message || e));
+      flash("Couldn't load data from Supabase: " + (e.message || e), true);
     }
   }
 
@@ -788,11 +789,12 @@
 
   /* --------------------------- toast --------------------------- */
   var toastTimer;
-  function flash(msg) {
+  function flash(msg, isError) {
     var t = el("toast");
     t.textContent = msg; t.classList.add("show");
+    t.classList.toggle("err", !!isError);
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2800);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, isError ? 15000 : 2800);
   }
   function commit() { persist(); render(); }
 
@@ -935,7 +937,7 @@
         "<td>" + badge(effStatus(c)) + "</td>" +
         "<td>" + (r ? esc(customerName(r.customerId)) : '<span class="muted">—</span>') + "</td>" +
         '<td class="num">' + (esc((r ? r.rentalNumber : c.rentalNumber) || "") || "—") + "</td>" +
-        '<td class="num">' + (r ? money(r.monthlyRate, 0) : "—") + "</td>" +
+        '<td class="num">' + (r ? money(r.monthlyRate) : "—") + "</td>" +
         '<td class="right nowrap">' +
         '<button class="btn sm ghost" data-act="print-one-label" data-pool="fleet" data-id="' + esc(c.id) + '">QR</button> ' +
         '<button class="btn sm ghost" data-act="fleet-edit" data-id="' + esc(c.id) + '">Edit</button>' +
@@ -1170,8 +1172,8 @@
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
         "<td>" + esc(customerName(r.customerId)) +
         (refs.length ? '<div class="subline mono">' + esc(refs.join(" · ")) + "</div>" : "") + "</td>" +
-        '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
-        '<td class="num muted">' + (r.serviceFee ? money(r.serviceFee, 0) : "—") + "</td>" +
+        '<td class="num">' + money(r.monthlyRate) + "</td>" +
+        '<td class="num muted">' + (r.serviceFee ? money(r.serviceFee) : "—") + "</td>" +
         '<td class="num">' + fmtDate(r.startDate) + "</td>" +
         '<td class="num">' + endCell + "</td>" +
         '<td class="right nowrap">' +
@@ -1409,7 +1411,7 @@
     var ym = monthKey(r.startDate);
     if (invoiceExists(rentalId, "initial", null)) return flash("First invoice already generated for this rental");
     var prorate = nextMonthProrate(r.monthlyRate, r.startDate);
-    var amount = round0((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
+    var amount = round2((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
     var meta = invoiceMeta(r);
     state.invoices.push({
       id: uid(), number: nextInvoiceNumber(), kind: "initial", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
@@ -1417,7 +1419,7 @@
       periodMonth: ym, serviceFee: r.serviceFee || 0, baseRate: r.monthlyRate, prorate: prorate,
       amount: amount, issueDate: today(), dueDate: today(), status: "unpaid", paidDate: null
     });
-    flash("Generated first invoice — " + money(amount, 0) + " for " + customerName(r.customerId));
+    flash("Generated first invoice — " + money(amount) + " for " + customerName(r.customerId));
     commit();
   }
   function generateAllNewRentalInvoices(ym) {
@@ -1425,7 +1427,7 @@
     if (!list.length) return flash("Nothing new to invoice for " + monthLabel(ym));
     list.forEach(function (r) {
       var prorate = nextMonthProrate(r.monthlyRate, r.startDate);
-      var amount = round0((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
+      var amount = round2((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
       var meta = invoiceMeta(r);
       state.invoices.push({
         id: uid(), number: nextInvoiceNumber(), kind: "initial", rentalId: r.id, containerId: r.containerId, customerId: r.customerId,
@@ -1491,7 +1493,7 @@
         accountNumber: meta.accountNumber, poNumber: meta.poNumber, rentalNumber: meta.rentalNumber,
         periodMonth: ym, baseRate: r.monthlyRate, amount: -credit, issueDate: today(), dueDate: today(), status: "applied", paidDate: null
       });
-      flash("Issued credit (" + money(credit, 0) + ") for " + customerName(r.customerId));
+      flash("Issued credit (" + money(credit) + ") for " + customerName(r.customerId));
     }
     commit();
   }
@@ -1570,7 +1572,7 @@
     var newRows = newList.map(function (r) {
       var existingInv = state.invoices.find(function (i) { return i.rentalId === r.id && i.kind === "initial"; });
       var prorate = nextMonthProrate(r.monthlyRate, r.startDate);
-      var total = round0((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
+      var total = round2((Number(r.serviceFee) || 0) + (Number(r.monthlyRate) || 0) + prorate);
       var actionBtn = existingInv
         ? '<button class="btn sm ' + (existingInv.status === "paid" ? "ghost" : "danger") + '" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">' + (existingInv.status === "paid" ? "Paid — locked" : "Undo") + "</button>"
         : '<button class="btn sm primary" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">Done</button>';
@@ -1579,9 +1581,9 @@
         "<td>" + customerCellHtml(r.customerId) + "</td>" +
         '<td class="num">' + fmtDate(r.startDate) + "</td>" +
         '<td class="num">' + money(r.serviceFee || 0, 0) + "</td>" +
-        '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
-        '<td class="num">' + money(prorate, 0) + "</td>" +
-        '<td class="num money">' + money(total, 0) + "</td>" +
+        '<td class="num">' + money(r.monthlyRate) + "</td>" +
+        '<td class="num">' + money(prorate) + "</td>" +
+        '<td class="num money">' + money(total) + "</td>" +
         "<td>" + actionBtn + "</td></tr>";
     }).join("");
     if (!newList.length) newRows = '<tr><td colspan="8" class="empty-row">No new rentals delivered in ' + monthLabel(ym) + ".</td></tr>";
@@ -1599,7 +1601,7 @@
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
         "<td>" + customerCellHtml(r.customerId) + "</td>" +
         '<td class="num">' + fmtDate(r.endDate) + "</td>" +
-        '<td class="num" style="color:var(--credit)">-' + money(credit, 0) + "</td>" +
+        '<td class="num" style="color:var(--credit)">-' + money(credit) + "</td>" +
         '<td class="num">' + money(r.serviceFee || 0, 0) + "</td>" +
         '<td class="right nowrap">' + billedBtn + " " + creditBtn + " " + removedBtn + "</td></tr>";
     }).join("");
@@ -1617,7 +1619,7 @@
         "<td>" + customerCellHtml(r.customerId) + "</td>" +
         '<td class="num">' + fmtDate(r.startDate) + "</td>" +
         '<td class="num">' + elapsed + " mo</td>" +
-        '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
+        '<td class="num">' + money(r.monthlyRate) + "</td>" +
         '<td class="right">' + actionBtn + "</td></tr>";
     }).join("");
     if (!pendingList.length) pendingRows = '<tr><td colspan="5" class="empty-row">Nothing waiting — everything eligible is already on the recurring system.</td></tr>';
@@ -1631,7 +1633,7 @@
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
         "<td>" + customerCellHtml(r.customerId) + "</td>" +
-        '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
+        '<td class="num">' + money(r.monthlyRate) + "</td>" +
         '<td class="right">' + actionBtn + "</td></tr>";
     }).join("");
     if (!roster.length) rosterRows = '<tr><td colspan="4" class="empty-row">No rentals are flagged as on-recurring yet.</td></tr>';
@@ -1813,7 +1815,7 @@
         var groupTotal = jobs.reduce(function (s, h) { return s + (Number(h.amount) || 0); }, 0);
         var allBilled = jobs.every(function (h) { return h.billed; });
         rows += '<tr><td colspan="7" style="background:var(--surface-2);font-weight:700;padding:10px 14px;border-radius:6px">' +
-          "PO " + esc(po) + " — " + jobs.length + " jobs — Total " + money(groupTotal, 0) +
+          "PO " + esc(po) + " — " + jobs.length + " jobs — Total " + money(groupTotal) +
           ' <button class="btn sm ' + (allBilled ? "ghost" : "primary") + '" data-act="haul-po-toggle-billed" data-po="' + esc(po) + '" style="margin-left:10px">' + (allBilled ? "Unmark all billed" : "Mark all billed as one invoice") + "</button>" +
           "</td></tr>";
         jobs.forEach(function (h) { rows += haulRowHtml(h, true); });
@@ -1919,7 +1921,7 @@
         '<td style="font-weight:600">' + esc(s.customerName) + (acct ? '<div class="subline mono">Acct ' + esc(acct) + "</div>" : "") + "</td>" +
         '<td class="cid">' + esc(s.containerId) + "</td>" +
         '<td class="num">' + (s.confirmedDate ? fmtDate(s.confirmedDate) : "—") + "</td>" +
-        '<td class="num money">' + money(s.salePrice, 0) + "</td>" +
+        '<td class="num money">' + money(s.salePrice) + "</td>" +
         "<td>" + (s.billed ? badge("Paid") : badge("Unpaid")) + "</td>" +
         '<td class="right"><button class="btn sm ' + (s.billed ? "ghost" : "primary") + '" data-act="sales-bill-toggle" data-id="' + esc(s.id) + '">' + (s.billed ? "Unmark" : "Mark billed") + "</button></td></tr>";
     }).join("");
@@ -1969,7 +1971,7 @@
         "<td>" + (c.driver ? driverBadgeHtml(c.driver) + esc(c.driver) : "—") + "</td>" +
         '<td class="num">' + (c.scheduledDate ? fmtDate(c.scheduledDate) : "—") + "</td>" +
         '<td class="num">' + (c.actualDate ? fmtDate(c.actualDate) : "—") + "</td>" +
-        '<td class="num money">' + money(c.amount, 0) + "</td>" +
+        '<td class="num money">' + money(c.amount) + "</td>" +
         "</tr>";
     }).join("");
     if (!list.length) rows = '<tr><td colspan="7" class="empty-row">No completed jobs match.</td></tr>';
@@ -2042,7 +2044,7 @@
         "<td>" + esc(c.grade) + "</td>" +
         "<td>" + esc(c.condition) + "</td>" +
         "<td>" + esc(c.color) + "</td>" +
-        '<td class="num">' + money(c.bookValue, 0) + "</td>" +
+        '<td class="num">' + money(c.bookValue) + "</td>" +
         "<td>" + badge(c.status) + "</td>" +
         "<td>" + reserveInfo + "</td>" +
         '<td class="right nowrap">' +
@@ -2157,7 +2159,7 @@
           '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">Edit</button> ' +
           '<button class="btn sm ghost danger" data-act="quote-decline" data-id="' + esc(q.id) + '">Decline</button>';
       } else {
-        actions = '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">View</button>';
+        actions = '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">' + (q.status === "Declined" ? "View" : "Edit") + "</button>";
       }
       var salesCont = q.category === "Sales" ? salesContainerById(q.salesContainerId) : null;
       var sizeDisplay = q.category === "Sales" ? (salesCont ? salesCont.type : "—") : (q.category === "Rental" || q.category === "Contract Haul") ? (q.containerType || "—") : "—";
@@ -2203,7 +2205,7 @@
   function renderSalesContainerCombo(term) {
     var matches = comboSalesContainerItems(term || "");
     var html = matches.map(function (c) {
-      return '<div class="combo-item" data-act="quote-salescont-pick" data-id="' + esc(c.id) + '">' + esc(c.id) + " · " + esc(c.type) + " · " + esc(c.color || "no color") + " — book " + money(c.bookValue, 0) + "</div>";
+      return '<div class="combo-item" data-act="quote-salescont-pick" data-id="' + esc(c.id) + '">' + esc(c.id) + " · " + esc(c.type) + " · " + esc(c.color || "no color") + " — book " + money(c.bookValue) + "</div>";
     }).join("");
     el("q-salescont-list").innerHTML = html || '<div class="combo-empty">No available sales containers match.</div>';
     el("q-salescont-list").style.display = "block";
@@ -2223,7 +2225,7 @@
       requestedDate: "", shipToAddress: "", poNumber: "", paymentMethod: "", doorOrientation: "", email: "",
       salesSpecType: "", salesSpecCondition: "", salesSpecColor: ""
     };
-    var readOnly = editing && editing.status !== "Draft";
+    var readOnly = editing && editing.status === "Declined";
     var dis = readOnly ? " disabled" : "";
     var siblings = editing ? quoteSiblings(editing) : [];
     openModal(editing ? (readOnly ? "View quote " + esc(q.quoteNumber) : "Edit quote " + esc(q.quoteNumber)) : "New quote",
@@ -2367,7 +2369,7 @@
     if (el("q-sales-spec-condition").value) descParts.push(el("q-sales-spec-condition").value);
     if (el("q-sales-spec-color").value.trim()) descParts.push(el("q-sales-spec-color").value.trim());
     var desc = descParts.length ? " (" + descParts.join(", ") + ")" : "";
-    infoEl.innerHTML = matches.length + " container" + (matches.length === 1 ? "" : "s") + " in inventory match" + (matches.length === 1 ? "es" : "") + desc + " — average book value " + money(avg, 0);
+    infoEl.innerHTML = matches.length + " container" + (matches.length === 1 ? "" : "s") + " in inventory match" + (matches.length === 1 ? "es" : "") + desc + " — average book value " + money(avg);
   }
   function quoteSalesScanStart() {
     genericStartScan("q-sales-scan-area", "q-sales-scan-video", function (data) { quoteSalesScanResult(data); });
@@ -2392,12 +2394,12 @@
     flash("Container " + found.id + " selected from scan");
   }
   function quoteLineItemSummary(item) {
-    if (item.category === "Rental") return esc(item.containerType) + " — " + money(item.monthlyRate, 0) + "/mo + " + money(item.serviceFee, 0) + " fee" + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
+    if (item.category === "Rental") return esc(item.containerType) + " — " + money(item.monthlyRate) + "/mo + " + money(item.serviceFee) + " fee" + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
     if (item.category === "Sales") {
       var salesLabel = item.salesContainerId || ([item.salesSpecType, item.salesSpecCondition, item.salesSpecColor].filter(Boolean).join(", ") || "Any container");
-      return esc(salesLabel) + " — " + money(item.salePrice, 0) + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
+      return esc(salesLabel) + " — " + money(item.salePrice) + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
     }
-    return (item.containerType ? esc(item.containerType) + " haul from " : "Haul from ") + esc(item.pickupAddress || "?") + " — " + money(item.haulAmount, 0) + (item.requestedDate ? " — service " + fmtDate(item.requestedDate) : "");
+    return (item.containerType ? esc(item.containerType) + " haul from " : "Haul from ") + esc(item.pickupAddress || "?") + " — " + money(item.haulAmount) + (item.requestedDate ? " — service " + fmtDate(item.requestedDate) : "");
   }
   var QUOTE_LINE_ITEM_EDIT_INDEX = null;
   function renderQuoteLineItemsList() {
@@ -2590,6 +2592,19 @@
         });
       }
       state.quotes = state.quotes.map(function (x) { return x.id === origId ? obj : x; });
+      var linkedCard = state.dispatchcards.find(function (c) { return c.sourceType === "quote" && c.sourceId === origId && !c.dispatcherConfirmed; });
+      if (linkedCard) {
+        state.dispatchcards = state.dispatchcards.map(function (c) {
+          if (c.id !== linkedCard.id) return c;
+          return Object.assign({}, c, {
+            amount: quoteAmount(obj),
+            shipToAddress: category === "Contract Haul" ? "" : obj.shipToAddress,
+            pickupAddress: category === "Contract Haul" ? obj.pickupAddress : "",
+            containerType: (category === "Rental" || category === "Contract Haul") ? obj.containerType : "",
+            requestedDate: obj.requestedDate || ""
+          });
+        });
+      }
       closeModal();
       flash("Quote updated");
       commit();
@@ -2838,7 +2853,7 @@
       var res = await sb.from("dispatchcards").update(rowToDb(patch)).eq("id", cardId);
       if (res.error) throw res.error;
     } catch (e) {
-      flash("Sync error — your scan may not have saved: " + (e.message || e));
+      flash("Sync error — your scan may not have saved: " + (e.message || e), true);
     }
   }
   function containerMatchesSpec(c, card) {
@@ -3028,7 +3043,7 @@
     } else if (card.category === "Sales") {
       var sc = salesContainerById((q && q.salesContainerId) || card.containerId);
       categoryHtml =
-        (sc ? '<div class="formula">Book value (reference): ' + money(sc.bookValue, 0) + "</div>" : "") +
+        (sc ? '<div class="formula">Book value (reference): ' + money(sc.bookValue) + "</div>" : "") +
         '<div class="fld"><label>Sale price ($)</label><input class="in mono" id="confirm-sale-price" type="number" value="' + esc(src.salePrice || 0) + '"></div>';
     } else if (card.category === "Contract Haul") {
       categoryHtml =
@@ -3150,7 +3165,7 @@
         '<td><span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span></td>" +
         "<td>" + esc(c.customerName) + "</td>" +
         "<td>" + esc(dispatchCardSummary(c)) + "</td>" +
-        '<td class="num money">' + money(c.amount, 0) + "</td>" +
+        '<td class="num money">' + money(c.amount) + "</td>" +
         '<td class="num">' + (c.requestedDate ? fmtDate(c.requestedDate) : "—") + "</td>" +
         '<td class="right"><button class="btn sm primary" data-act="dispatch-schedule" data-id="' + esc(c.id) + '">Schedule</button></td></tr>';
     }).join("");
