@@ -1774,27 +1774,54 @@
       '<div class="count" id="haul-count" style="margin-top:8px"></div>';
     renderHaulTable();
   }
+  function haulRowHtml(h, grouped) {
+    var refs = [];
+    if (h.accountNumber) refs.push("Acct " + h.accountNumber);
+    if (h.poNumber && !grouped) refs.push("PO " + h.poNumber);
+    var route = [h.pickupAddress, h.shipToAddress].filter(Boolean).join(" → ") || "—";
+    return "<tr" + (grouped ? ' style="background:var(--surface-2)"' : "") + ">" +
+      '<td style="font-weight:600' + (grouped ? ";padding-left:28px" : "") + '">' + esc(h.customerName) + (refs.length ? '<div class="subline mono">' + esc(refs.join(" · ")) + "</div>" : "") + "</td>" +
+      '<td class="num">' + (h.serviceDate ? fmtDate(h.serviceDate) : "—") + "</td>" +
+      '<td style="max-width:260px">' + esc(route) + "</td>" +
+      '<td class="num">' + (esc(h.driver) || "—") + "</td>" +
+      '<td class="num money">' + money(h.amount) + "</td>" +
+      "<td>" + (h.billed ? badge("Paid") : badge("Unpaid")) + "</td>" +
+      '<td class="right nowrap">' +
+      '<button class="btn sm ' + (h.billed ? "ghost" : "primary") + '" data-act="haul-toggle-billed" data-id="' + esc(h.id) + '">' + (h.billed ? "Unmark" : "Mark billed") + "</button> " +
+      '<button class="btn sm ghost" data-act="haul-edit" data-id="' + esc(h.id) + '">Edit</button>' +
+      '<button class="btn sm ghost danger" data-act="haul-del" data-id="' + esc(h.id) + '">Del</button></td></tr>';
+  }
   function renderHaulTable() {
     var list = haulList();
     var totalShown = list.reduce(function (s, h) { return s + (Number(h.amount) || 0); }, 0);
     var unbilledShown = list.filter(function (h) { return !h.billed; }).reduce(function (s, h) { return s + (Number(h.amount) || 0); }, 0);
-    var rows = list.map(function (h) {
-      var refs = [];
-      if (h.accountNumber) refs.push("Acct " + h.accountNumber);
-      if (h.poNumber) refs.push("PO " + h.poNumber);
-      var route = [h.pickupAddress, h.shipToAddress].filter(Boolean).join(" → ") || "—";
-      return "<tr>" +
-        '<td style="font-weight:600">' + esc(h.customerName) + (refs.length ? '<div class="subline mono">' + esc(refs.join(" · ")) + "</div>" : "") + "</td>" +
-        '<td class="num">' + (h.serviceDate ? fmtDate(h.serviceDate) : "—") + "</td>" +
-        '<td style="max-width:260px">' + esc(route) + "</td>" +
-        '<td class="num">' + (esc(h.driver) || "—") + "</td>" +
-        '<td class="num money">' + money(h.amount) + "</td>" +
-        "<td>" + (h.billed ? badge("Paid") : badge("Unpaid")) + "</td>" +
-        '<td class="right nowrap">' +
-        '<button class="btn sm ' + (h.billed ? "ghost" : "primary") + '" data-act="haul-toggle-billed" data-id="' + esc(h.id) + '">' + (h.billed ? "Unmark" : "Mark billed") + "</button> " +
-        '<button class="btn sm ghost" data-act="haul-edit" data-id="' + esc(h.id) + '">Edit</button>' +
-        '<button class="btn sm ghost danger" data-act="haul-del" data-id="' + esc(h.id) + '">Del</button></td></tr>';
-    }).join("");
+
+    var poGroups = {}, poOrder = [], standalone = [];
+    list.forEach(function (h) {
+      var po = (h.poNumber || "").trim();
+      if (po) {
+        if (!poGroups[po]) { poGroups[po] = []; poOrder.push(po); }
+        poGroups[po].push(h);
+      } else {
+        standalone.push(h);
+      }
+    });
+    var rows = "";
+    poOrder.forEach(function (po) {
+      var jobs = poGroups[po];
+      if (jobs.length > 1) {
+        var groupTotal = jobs.reduce(function (s, h) { return s + (Number(h.amount) || 0); }, 0);
+        var allBilled = jobs.every(function (h) { return h.billed; });
+        rows += '<tr><td colspan="7" style="background:var(--surface-2);font-weight:700;padding:10px 14px;border-radius:6px">' +
+          "PO " + esc(po) + " — " + jobs.length + " jobs — Total " + money(groupTotal, 0) +
+          ' <button class="btn sm ' + (allBilled ? "ghost" : "primary") + '" data-act="haul-po-toggle-billed" data-po="' + esc(po) + '" style="margin-left:10px">' + (allBilled ? "Unmark all billed" : "Mark all billed as one invoice") + "</button>" +
+          "</td></tr>";
+        jobs.forEach(function (h) { rows += haulRowHtml(h, true); });
+      } else {
+        rows += haulRowHtml(jobs[0], false);
+      }
+    });
+    standalone.forEach(function (h) { rows += haulRowHtml(h, false); });
     if (!list.length) rows = '<tr><td colspan="7" class="empty-row">No haul jobs match.</td></tr>';
     el("haul-table").innerHTML =
       '<div class="kpis" style="margin-bottom:16px">' +
@@ -1845,6 +1872,14 @@
   }
   function haulToggleBilled(id) {
     state.hauls = state.hauls.map(function (h) { return h.id === id ? Object.assign({}, h, { billed: !h.billed }) : h; });
+    commit();
+  }
+  function haulToggleBilledForPO(po) {
+    var jobs = state.hauls.filter(function (h) { return (h.poNumber || "").trim() === po; });
+    var allBilled = jobs.length && jobs.every(function (h) { return h.billed; });
+    var newVal = !allBilled;
+    state.hauls = state.hauls.map(function (h) { return (h.poNumber || "").trim() === po ? Object.assign({}, h, { billed: newVal }) : h; });
+    flash(newVal ? "Marked all " + jobs.length + " jobs under PO " + po + " as billed" : "Unmarked all jobs under PO " + po);
     commit();
   }
 
@@ -2397,7 +2432,7 @@
       salesContainerId: el("q-salescont").value || "", salePrice: Number(el("q-sale-price").value) || 0,
       salesSpecType: el("q-sales-spec-type") ? el("q-sales-spec-type").value : "", salesSpecCondition: el("q-sales-spec-condition") ? el("q-sales-spec-condition").value : "", salesSpecColor: el("q-sales-spec-color") ? el("q-sales-spec-color").value.trim() : "",
       pickupAddress: el("q-pickup").value.trim(), haulAmount: Number(el("q-haul-amount").value) || 0,
-      requestedDate: el("q-reqdate").value || "", shipToAddress: el(quoteShipToFieldId()).value.trim(), poNumber: el("q-po").value.trim()
+      requestedDate: el("q-reqdate").value || "", shipToAddress: el(quoteShipToFieldId()).value.trim()
     };
   }
   function quoteClearLineItemFields() {
@@ -2405,7 +2440,7 @@
     el("q-salescont").value = ""; el("q-salescont-search").value = ""; el("q-sale-price").value = "";
     el("q-bookvalue-wrap").style.display = "none";
     el("q-pickup").value = ""; el("q-haul-amount").value = "";
-    el("q-reqdate").value = ""; el("q-reqdate-display").value = ""; el("q-shipto").value = ""; if (el("q-haul-shipto")) el("q-haul-shipto").value = ""; el("q-po").value = "";
+    el("q-reqdate").value = ""; el("q-reqdate-display").value = ""; el("q-shipto").value = ""; if (el("q-haul-shipto")) el("q-haul-shipto").value = "";
   }
   function renderQuoteContactsList() {
     var wrap = el("q-contacts-wrap");
@@ -2508,7 +2543,6 @@
     el("q-reqdate-display").value = formatDateDisplay(item.requestedDate);
     el("q-shipto").value = item.shipToAddress || "";
     if (el("q-haul-shipto")) el("q-haul-shipto").value = item.shipToAddress || "";
-    el("q-po").value = item.poNumber || "";
     QUOTE_LINE_ITEM_EDIT_INDEX = index;
     var addBtn = el("q-lineitem-add-btn");
     if (addBtn) addBtn.textContent = "Update this line item";
@@ -2573,6 +2607,7 @@
     var paymentMethod = el("q-payment-method").value;
     var doorOrientation = el("q-door-orientation").value;
     var email = el("q-email").value.trim();
+    var po = el("q-po").value.trim();
     var batchId = items.length > 1 ? uid() : null;
     var createdCount = 0;
     var lastNumber = "";
@@ -2585,7 +2620,7 @@
         salesContainerId: item.salesContainerId || "", salePrice: item.salePrice || 0,
         salesSpecType: item.salesSpecType || "", salesSpecCondition: item.salesSpecCondition || "", salesSpecColor: item.salesSpecColor || "",
         pickupAddress: item.pickupAddress || "", haulAmount: item.haulAmount || 0,
-        requestedDate: item.requestedDate || "", shipToAddress: item.shipToAddress || "", poNumber: item.poNumber || "",
+        requestedDate: item.requestedDate || "", shipToAddress: item.shipToAddress || "", poNumber: po,
         contacts: contacts, paymentMethod: paymentMethod, doorOrientation: doorOrientation, email: email
       };
       state.quotes.unshift(newObj);
@@ -3474,6 +3509,7 @@
     "haul-del": function (t) { haulDel(t.getAttribute("data-id")); },
     "haul-save": function (t) { haulSave(t.getAttribute("data-id")); },
     "haul-toggle-billed": function (t) { haulToggleBilled(t.getAttribute("data-id")); },
+    "haul-po-toggle-billed": function (t) { haulToggleBilledForPO(t.getAttribute("data-po")); },
     "haul-filter": function (t) { ui.haulFilter = t.getAttribute("data-filter"); render(); },
     "sales-bill-filter": function (t) { ui.salesBillFilter = t.getAttribute("data-filter"); render(); },
     "completed-jobs-filter": function (t) { ui.completedJobsCatFilter = t.getAttribute("data-filter"); render(); },
@@ -3559,11 +3595,18 @@
     "profile-save": function (t) { profileSave(t.getAttribute("data-id")); }
   };
 
+  var OVERLAY_MOUSEDOWN_WAS_BACKDROP = false;
+  document.addEventListener("mousedown", function (e) {
+    OVERLAY_MOUSEDOWN_WAS_BACKDROP = !!(e.target.classList && e.target.classList.contains("overlay"));
+  });
   document.addEventListener("click", function (e) {
     Array.prototype.forEach.call(document.querySelectorAll(".combo-list"), function (list) {
       if (!list.parentElement.contains(e.target)) list.style.display = "none";
     });
-    if (e.target.classList && e.target.classList.contains("overlay")) { closeModal(); return; }
+    if (e.target.classList && e.target.classList.contains("overlay")) {
+      if (OVERLAY_MOUSEDOWN_WAS_BACKDROP) closeModal();
+      return;
+    }
     var node = e.target.closest("[data-act]");
     if (node) {
       var act = node.getAttribute("data-act");
