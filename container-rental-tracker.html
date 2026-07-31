@@ -179,6 +179,7 @@
       <button data-act="tab" data-tab="quotes">Quotes</button>
       <button data-act="tab" data-tab="dispatch">Dispatch</button>
       <button data-act="tab" data-tab="sales-billing">Sales Billing</button>
+      <button data-act="tab" data-tab="completed-jobs">Completed Jobs</button>
       <button data-act="tab" data-tab="driver-access">Driver Access</button>
     </nav>
   </header>
@@ -217,7 +218,6 @@
   var SALES_STATUSES = ["Available", "Reserved", "Sold"];
   var SALES_HOLD_DAYS = 7; // a sales container reserved to an unapproved quote this long auto-releases
   var QUOTE_CATEGORIES = ["Rental", "Sales", "Contract Haul"];
-  var PAYMENT_METHODS = ["Credit Card", "Check", "Cash", "ACH / Bank Transfer", "Invoice / Net Terms"];
   var DOOR_ORIENTATIONS = ["Facing Cab", "Doors First"];
   var DISPATCH_CATEGORIES = ["Rental Delivery", "Rental Return", "Sales", "Contract Haul"];
   var DRIVERS = ["Jim", "Brian"]; // rename here any time driver rosters change
@@ -242,7 +242,8 @@
     salesQ: "", salesFilter: "all",
     quoteQ: "", quoteCatFilter: "all", quoteStatusFilter: "all",
     dispatchViewMode: "month", dispatchRefDate: today(), dispatchDriverFilter: "all",
-    salesBillQ: "", salesBillFilter: "all"
+    salesBillQ: "", salesBillFilter: "all",
+    completedJobsQ: "", completedJobsCatFilter: "all"
   };
 
   /* ------------------------- helpers ------------------------- */
@@ -834,6 +835,7 @@
     else if (ui.tab === "quotes") renderQuotes(v);
     else if (ui.tab === "dispatch") renderDispatch(v);
     else if (ui.tab === "sales-billing") renderSalesBilling(v);
+    else if (ui.tab === "completed-jobs") renderCompletedJobs(v);
     else if (ui.tab === "driver-access") renderDriverAccess(v);
 
     v.insertAdjacentHTML("beforeend",
@@ -1900,8 +1902,49 @@
     commit();
   }
 
+  /* --------------------------- completed jobs --------------------------- */
+  function completedJobsList() {
+    var term = ui.completedJobsQ.trim().toLowerCase();
+    return state.dispatchcards.filter(function (c) {
+      if (!c.dispatcherConfirmed) return false;
+      if (ui.completedJobsCatFilter !== "all" && c.category !== ui.completedJobsCatFilter) return false;
+      if (!term) return true;
+      return [c.customerName, c.containerId, c.driver].join(" ").toLowerCase().indexOf(term) !== -1;
+    }).sort(function (a, b) { return (b.actualDate || "").localeCompare(a.actualDate || ""); });
+  }
+  function renderCompletedJobs(v) {
+    v.innerHTML =
+      '<div class="pagehead"><div><h2>Completed Jobs<span class="count">' + state.dispatchcards.filter(function (c) { return c.dispatcherConfirmed; }).length + '</span></h2><div class="sub">Every job confirmed by both the driver and dispatcher, across all four job types</div></div></div>' +
+      '<div class="toolbar"><div class="search"><input class="in" id="completed-jobs-search" placeholder="Search customer, container, or driver…" value="' + esc(ui.completedJobsQ) + '"></div></div>' +
+      '<div class="chips" style="margin-bottom:14px">' +
+      ["all"].concat(DISPATCH_CATEGORIES).map(function (c) {
+        return '<button class="chip ' + (ui.completedJobsCatFilter === c ? "on" : "") + '" data-act="completed-jobs-filter" data-filter="' + c + '">' + (c === "all" ? "All" : c) + "</button>";
+      }).join("") + "</div>" +
+      '<div id="completed-jobs-table"></div>' +
+      '<div class="count" id="completed-jobs-count" style="margin-top:8px"></div>';
+    renderCompletedJobsTable();
+  }
+  function renderCompletedJobsTable() {
+    var list = completedJobsList();
+    var rows = list.map(function (c) {
+      return "<tr>" +
+        '<td><span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span></td>" +
+        "<td>" + esc(c.customerName) + "</td>" +
+        '<td class="cid">' + (esc(c.containerId) || "—") + "</td>" +
+        "<td>" + (c.driver ? driverBadgeHtml(c.driver) + esc(c.driver) : "—") + "</td>" +
+        '<td class="num">' + (c.scheduledDate ? fmtDate(c.scheduledDate) : "—") + "</td>" +
+        '<td class="num">' + (c.actualDate ? fmtDate(c.actualDate) : "—") + "</td>" +
+        '<td class="num money">' + money(c.amount, 0) + "</td>" +
+        "</tr>";
+    }).join("");
+    if (!list.length) rows = '<tr><td colspan="7" class="empty-row">No completed jobs match.</td></tr>';
+    el("completed-jobs-table").innerHTML =
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Type</th><th>Customer</th><th>Container</th><th>Driver</th><th>Scheduled</th><th>Completed</th><th>Amount</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+    el("completed-jobs-count").textContent = "Showing " + list.length + " of " + state.dispatchcards.filter(function (x) { return x.dispatcherConfirmed; }).length;
+  }
+
   /* --------------------------- sales inventory --------------------------- */
-  var SALES_CONDITIONS = ["Excellent", "Good", "Fair", "Poor"];
+  var SALES_CONDITIONS = ["One-Trip", "Excellent", "Good", "Fair", "Poor"];
 
   function daysBetween(d1, d2) {
     var a = new Date(d1 + "T00:00:00Z"), b = new Date(d2 + "T00:00:00Z");
@@ -2142,7 +2185,8 @@
       containerType: TYPES[0], monthlyRate: "", serviceFee: "",
       salesContainerId: "", salePrice: "",
       pickupAddress: "", haulAmount: "",
-      requestedDate: "", shipToAddress: "", poNumber: "", paymentMethod: "", doorOrientation: "", email: ""
+      requestedDate: "", shipToAddress: "", poNumber: "", paymentMethod: "", doorOrientation: "", email: "",
+      salesSpecType: "", salesSpecCondition: "", salesSpecColor: ""
     };
     var readOnly = editing && editing.status !== "Draft";
     var dis = readOnly ? " disabled" : "";
@@ -2175,17 +2219,37 @@
       "</div>" +
 
       '<div class="quote-group" id="q-group-sales">' +
+      (editing ? "" : '<div class="chips" style="margin-bottom:8px">' +
+        '<button type="button" class="chip' + (q.salesSpecType || q.salesSpecCondition || q.salesSpecColor ? "" : " on") + '" id="q-sales-mode-specific" data-act="q-sales-mode" data-mode="specific">Specific container</button>' +
+        '<button type="button" class="chip' + (q.salesSpecType || q.salesSpecCondition || q.salesSpecColor ? " on" : "") + '" id="q-sales-mode-criteria" data-act="q-sales-mode" data-mode="criteria">By criteria</button>' +
+        "</div>") +
+      '<div id="q-sales-specific-wrap" style="' + ((q.salesSpecType || q.salesSpecCondition || q.salesSpecColor) ? "display:none" : "") + '">' +
       '<div class="fld"><label>Sales container</label>' +
       '<div class="combo-wrap"><input class="in mono" id="q-salescont-search" autocomplete="off" placeholder="Search available sales containers…"' + dis + '>' +
       '<input type="hidden" id="q-salescont" value="' + esc(q.salesContainerId || "") + '"><div class="combo-list" id="q-salescont-list"></div></div></div>' +
+      (editing ? "" : '<button type="button" class="btn sm ghost" data-act="q-sales-scan-start">\uD83D\uDCF7 Scan QR Code</button><div id="q-sales-scan-area" style="margin-top:8px"></div>') +
       '<div class="fld" id="q-bookvalue-wrap" style="' + (q.salesContainerId ? "" : "display:none") + '"><label>Book value (reference)</label><div class="formula" id="q-bookvalue-display">' + (q.salesContainerId && salesContainerById(q.salesContainerId) ? money(salesContainerById(q.salesContainerId).bookValue) : "") + "</div></div>" +
+      "</div>" +
+      '<div class="fld" id="q-sales-criteria-wrap" style="' + ((q.salesSpecType || q.salesSpecCondition || q.salesSpecColor) ? "" : "display:none") + '">' +
+      '<label>Container criteria</label>' +
+      '<div class="row2"><select class="in" id="q-sales-spec-type"' + dis + '>' + opt([{ v: "", t: "Any size" }].concat(TYPES), q.salesSpecType || "") + "</select>" +
+      '<select class="in" id="q-sales-spec-condition"' + dis + '>' + opt([{ v: "", t: "Any condition" }].concat(SALES_CONDITIONS), q.salesSpecCondition || "") + "</select></div>" +
+      '<input class="in" id="q-sales-spec-color" placeholder="Color (optional)" value="' + esc(q.salesSpecColor || "") + '"' + dis + ' style="margin-top:8px">' +
+      '<div class="formula" id="q-sales-spec-match-info" style="margin-top:8px">—</div>' +
+      "</div>" +
       '<div class="fld"><label>Sale price ($)</label><input class="in mono" id="q-sale-price" type="number" min="0" value="' + esc(q.salePrice) + '"' + dis + "></div>" +
       "</div>" +
 
       '<div class="quote-group" id="q-group-haul">' +
       '<div class="fld"><label>Container size</label><select class="in" id="q-haul-container-type"' + dis + '>' + opt(TYPES, q.containerType || TYPES[0]) + "</select></div>" +
       '<div class="fld"><label>Pick-up address</label><div class="combo-wrap"><input class="in addr-input" id="q-pickup" value="' + esc(q.pickupAddress) + '"' + dis + '><div class="combo-list" id="q-pickup-list"></div></div><div class="subline" id="q-pickup-hint" style="color:var(--warn)"></div></div>' +
+      (editing ? "" : '<div class="fld" id="q-haul-samepickup-wrap" style="display:none;margin-top:-8px">' +
+        '<label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">' +
+        '<input type="checkbox" id="q-haul-samepickup-check" style="width:auto"> Use the same pick-up address as line item 1</label></div>') +
       '<div class="fld"><label>Ship-to / delivery address</label><div class="combo-wrap"><input class="in addr-input" id="q-haul-shipto" value="' + esc(q.shipToAddress) + '"' + dis + '><div class="combo-list" id="q-haul-shipto-list"></div></div><div class="subline" id="q-haul-shipto-hint" style="color:var(--warn)"></div></div>' +
+      (editing ? "" : '<div class="fld" id="q-haul-sameship-wrap" style="display:none;margin-top:-8px">' +
+        '<label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">' +
+        '<input type="checkbox" id="q-haul-sameship-check" style="width:auto"> Use the same delivery address as line item 1</label></div>') +
       '<div class="fld"><label>Haul amount ($)</label><input class="in mono" id="q-haul-amount" type="number" min="0" value="' + esc(q.haulAmount) + '"' + dis + "></div>" +
       "</div>" +
 
@@ -2200,9 +2264,10 @@
       '<div class="fld"><label>Contacts</label>' +
       '<div class="quickadd" id="q-contacts-wrap" style="display:none"><div id="q-contacts-list" class="list"></div></div>' +
       '<div class="row2"><input class="in" id="q-contact-name" placeholder="Name"' + dis + '><input class="in" id="q-contact-phone" placeholder="Phone"' + dis + "></div>" +
+      '<input class="in" id="q-contact-type" placeholder="Contact type (e.g. Site contact, Billing)" style="margin-top:8px"' + dis + ">" +
       (readOnly ? "" : '<button type="button" class="btn sm ghost" style="margin-top:6px" data-act="quote-contact-add">+ Add contact</button>') +
       "</div>" +
-      '<div class="row2"><div class="fld"><label>Payment method</label><select class="in" id="q-payment-method"' + dis + '>' + opt([""].concat(PAYMENT_METHODS), q.paymentMethod || "") + "</select></div>" +
+      '<div class="row2"><div class="fld"><label>Payment method</label><input class="in" id="q-payment-method" value="' + esc(q.paymentMethod || "") + '"' + dis + "></div>" +
       '<div class="fld"><label>Door orientation</label><select class="in" id="q-door-orientation"' + dis + '>' + opt([""].concat(DOOR_ORIENTATIONS), q.doorOrientation || "") + "</select></div></div>" +
       '<div class="fld"><label>PO # (optional)</label><input class="in" id="q-po" value="' + esc(q.poNumber) + '"' + dis + "></div>" +
       '<div class="fld"><label>Notes</label><textarea class="in" id="q-notes" rows="2"' + dis + '>' + esc(q.notes) + "</textarea></div>" +
@@ -2213,6 +2278,7 @@
     quoteShowGroup(q.category);
     if (!editing) renderQuoteLineItemsList();
     renderQuoteContactsList();
+    updateSalesSpecMatchInfo();
   }
   function quoteShowGroup(cat) {
     ["rental", "sales", "haul"].forEach(function (slug) {
@@ -2221,17 +2287,93 @@
     });
     var sharedShipto = el("q-shipto-shared-wrap");
     if (sharedShipto) sharedShipto.style.display = cat === "Contract Haul" ? "none" : "";
+    var genericSameAddr = el("q-sameaddr-wrap");
+    if (genericSameAddr && cat === "Contract Haul") genericSameAddr.style.display = "none";
+    else if (genericSameAddr && QUOTE_LINE_ITEMS.length) genericSameAddr.style.display = "block";
+  }
+  function quoteSetSalesMode(mode) {
+    var specificWrap = el("q-sales-specific-wrap"), criteriaWrap = el("q-sales-criteria-wrap");
+    var specificBtn = el("q-sales-mode-specific"), criteriaBtn = el("q-sales-mode-criteria");
+    if (!specificWrap || !criteriaWrap) return;
+    if (mode === "criteria") {
+      specificWrap.style.display = "none"; criteriaWrap.style.display = "block";
+      if (specificBtn) specificBtn.classList.remove("on");
+      if (criteriaBtn) criteriaBtn.classList.add("on");
+      el("q-salescont").value = ""; el("q-salescont-search").value = "";
+      el("q-bookvalue-wrap").style.display = "none";
+      updateSalesSpecMatchInfo();
+    } else {
+      specificWrap.style.display = ""; criteriaWrap.style.display = "none";
+      if (criteriaBtn) criteriaBtn.classList.remove("on");
+      if (specificBtn) specificBtn.classList.add("on");
+      el("q-sales-spec-type").value = ""; el("q-sales-spec-condition").value = ""; el("q-sales-spec-color").value = "";
+    }
+  }
+  function computeSalesSpecMatches() {
+    var typeEl = el("q-sales-spec-type"), condEl = el("q-sales-spec-condition"), colorEl = el("q-sales-spec-color");
+    if (!typeEl) return [];
+    var type = typeEl.value, condition = condEl.value, color = colorEl.value.trim().toLowerCase();
+    return state.salescontainers.filter(function (c) {
+      if (c.status !== "Available") return false;
+      if (type && c.type !== type) return false;
+      if (condition && c.condition !== condition) return false;
+      if (color && (c.color || "").trim().toLowerCase().indexOf(color) === -1) return false;
+      return true;
+    });
+  }
+  function updateSalesSpecMatchInfo() {
+    var infoEl = el("q-sales-spec-match-info");
+    if (!infoEl) return;
+    var matches = computeSalesSpecMatches();
+    if (!matches.length) { infoEl.textContent = "No available containers currently match this description."; return; }
+    var avg = matches.reduce(function (s, c) { return s + (Number(c.bookValue) || 0); }, 0) / matches.length;
+    var descParts = [];
+    if (el("q-sales-spec-type").value) descParts.push(el("q-sales-spec-type").value);
+    if (el("q-sales-spec-condition").value) descParts.push(el("q-sales-spec-condition").value);
+    if (el("q-sales-spec-color").value.trim()) descParts.push(el("q-sales-spec-color").value.trim());
+    var desc = descParts.length ? " (" + descParts.join(", ") + ")" : "";
+    infoEl.innerHTML = matches.length + " container" + (matches.length === 1 ? "" : "s") + " in inventory match" + (matches.length === 1 ? "es" : "") + desc + " — average book value " + money(avg, 0);
+  }
+  function quoteSalesScanStart() {
+    genericStartScan("q-sales-scan-area", "q-sales-scan-video", function (data) { quoteSalesScanResult(data); });
+  }
+  function quoteSalesScanResult(rawValue) {
+    var scanned = (rawValue || "").trim();
+    var found = findContainerCaseInsensitive("sales", scanned);
+    var area = el("q-sales-scan-area");
+    if (!found) {
+      if (area) area.innerHTML = '<div class="banner">Scanned <span class="mono">' + esc(scanned) + '</span> — not found in sales inventory. Try again or type the ID manually.</div>';
+      return;
+    }
+    if (found.status !== "Available" && found.reservedByQuoteId !== CURRENT_QUOTE_EDIT_ID) {
+      if (area) area.innerHTML = '<div class="banner">Container ' + esc(found.id) + " is already " + esc(found.status.toLowerCase()) + " — pick a different one.</div>";
+      return;
+    }
+    el("q-salescont").value = found.id;
+    el("q-salescont-search").value = found.id + " · " + found.type;
+    var wrap = el("q-bookvalue-wrap"), disp = el("q-bookvalue-display");
+    if (wrap) { wrap.style.display = ""; disp.textContent = money(found.bookValue); }
+    if (area) area.innerHTML = '<div class="formula" style="color:var(--ok)">Scanned and selected: ' + esc(found.id) + "</div>";
+    flash("Container " + found.id + " selected from scan");
   }
   function quoteLineItemSummary(item) {
     if (item.category === "Rental") return esc(item.containerType) + " — " + money(item.monthlyRate, 0) + "/mo + " + money(item.serviceFee, 0) + " fee" + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
-    if (item.category === "Sales") return esc(item.salesContainerId) + " — " + money(item.salePrice, 0) + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
+    if (item.category === "Sales") {
+      var salesLabel = item.salesContainerId || ([item.salesSpecType, item.salesSpecCondition, item.salesSpecColor].filter(Boolean).join(", ") || "Any container");
+      return esc(salesLabel) + " — " + money(item.salePrice, 0) + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
+    }
     return (item.containerType ? esc(item.containerType) + " haul from " : "Haul from ") + esc(item.pickupAddress || "?") + " — " + money(item.haulAmount, 0) + (item.requestedDate ? " — service " + fmtDate(item.requestedDate) : "");
   }
   var QUOTE_LINE_ITEM_EDIT_INDEX = null;
   function renderQuoteLineItemsList() {
     var wrap = el("q-lineitems-wrap");
+    var isHaul = el("q-category") && el("q-category").value === "Contract Haul";
     var sameAddrWrap = el("q-sameaddr-wrap");
-    if (sameAddrWrap) sameAddrWrap.style.display = QUOTE_LINE_ITEMS.length ? "block" : "none";
+    if (sameAddrWrap) sameAddrWrap.style.display = (QUOTE_LINE_ITEMS.length && !isHaul) ? "block" : "none";
+    var samePickupWrap = el("q-haul-samepickup-wrap");
+    if (samePickupWrap) samePickupWrap.style.display = QUOTE_LINE_ITEMS.length ? "block" : "none";
+    var sameShipWrap = el("q-haul-sameship-wrap");
+    if (sameShipWrap) sameShipWrap.style.display = QUOTE_LINE_ITEMS.length ? "block" : "none";
     if (!wrap) return;
     if (!QUOTE_LINE_ITEMS.length) { wrap.style.display = "none"; return; }
     wrap.style.display = "block";
@@ -2253,6 +2395,7 @@
       category: category,
       containerType: el(quoteContainerTypeFieldId()).value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
       salesContainerId: el("q-salescont").value || "", salePrice: Number(el("q-sale-price").value) || 0,
+      salesSpecType: el("q-sales-spec-type") ? el("q-sales-spec-type").value : "", salesSpecCondition: el("q-sales-spec-condition") ? el("q-sales-spec-condition").value : "", salesSpecColor: el("q-sales-spec-color") ? el("q-sales-spec-color").value.trim() : "",
       pickupAddress: el("q-pickup").value.trim(), haulAmount: Number(el("q-haul-amount").value) || 0,
       requestedDate: el("q-reqdate").value || "", shipToAddress: el(quoteShipToFieldId()).value.trim(), poNumber: el("q-po").value.trim()
     };
@@ -2270,15 +2413,16 @@
     if (!QUOTE_CONTACTS.length) { wrap.style.display = "none"; return; }
     wrap.style.display = "block";
     el("q-contacts-list").innerHTML = QUOTE_CONTACTS.map(function (c, idx) {
-      return '<div class="listrow"><div>' + esc(c.name || "(no name)") + (c.phone ? " — " + esc(c.phone) : "") + '</div><button type="button" class="btn sm ghost danger" data-act="quote-contact-remove" data-index="' + idx + '">Remove</button></div>';
+      return '<div class="listrow"><div>' + esc(c.name || "(no name)") + (c.type ? " (" + esc(c.type) + ")" : "") + (c.phone ? " — " + esc(c.phone) : "") + '</div><button type="button" class="btn sm ghost danger" data-act="quote-contact-remove" data-index="' + idx + '">Remove</button></div>';
     }).join("");
   }
   function quoteAddContact() {
     var name = el("q-contact-name").value.trim();
     var phone = el("q-contact-phone").value.trim();
-    if (!name && !phone) return flash("Enter a contact name or number first");
-    QUOTE_CONTACTS.push({ name: name, phone: phone });
-    el("q-contact-name").value = ""; el("q-contact-phone").value = "";
+    var type = el("q-contact-type").value.trim();
+    if (!name && !phone && !type) return flash("Enter a contact name or number first");
+    QUOTE_CONTACTS.push({ name: name, phone: phone, type: type });
+    el("q-contact-name").value = ""; el("q-contact-phone").value = ""; el("q-contact-type").value = "";
     renderQuoteContactsList();
     flash("Contact added");
   }
@@ -2290,12 +2434,13 @@
     var contacts = QUOTE_CONTACTS.slice();
     var name = el("q-contact-name") ? el("q-contact-name").value.trim() : "";
     var phone = el("q-contact-phone") ? el("q-contact-phone").value.trim() : "";
-    if (name || phone) contacts.push({ name: name, phone: phone });
+    var type = el("q-contact-type") ? el("q-contact-type").value.trim() : "";
+    if (name || phone || type) contacts.push({ name: name, phone: phone, type: type });
     return contacts;
   }
   function quoteLineItemHasContent(item) {
     if (item.category === "Rental") return item.monthlyRate > 0;
-    if (item.category === "Sales") return !!item.salesContainerId;
+    if (item.category === "Sales") return !!item.salesContainerId || !!(item.salesSpecType || item.salesSpecCondition || item.salesSpecColor);
     return item.haulAmount > 0 || !!item.pickupAddress;
   }
   function quoteEnsureCustomerSelected() {
@@ -2322,7 +2467,7 @@
     if (!el("q-customer").value) return flash("Enter a customer first");
     var item = quoteReadCurrentLineItem();
     if (!quoteLineItemHasContent(item)) return flash("Fill in this line item before adding it");
-    if (item.category === "Sales" && !item.salesContainerId) return flash("Pick a sales container for this line item");
+    if (item.category === "Sales" && !item.salesContainerId && !(item.salesSpecType || item.salesSpecCondition || item.salesSpecColor)) return flash("Pick a sales container, or set size/condition/color criteria, for this line item");
     if (QUOTE_LINE_ITEM_EDIT_INDEX !== null) {
       QUOTE_LINE_ITEMS[QUOTE_LINE_ITEM_EDIT_INDEX] = item;
       QUOTE_LINE_ITEM_EDIT_INDEX = null;
@@ -2350,6 +2495,13 @@
     el("q-salescont-search").value = sc ? (sc.id + " · " + sc.type) : "";
     el("q-bookvalue-wrap").style.display = sc ? "" : "none";
     if (sc) el("q-bookvalue-display").textContent = money(sc.bookValue);
+    if (el("q-sales-spec-type")) {
+      el("q-sales-spec-type").value = item.salesSpecType || "";
+      el("q-sales-spec-condition").value = item.salesSpecCondition || "";
+      el("q-sales-spec-color").value = item.salesSpecColor || "";
+      if (item.salesSpecType || item.salesSpecCondition || item.salesSpecColor) quoteSetSalesMode("criteria");
+      else quoteSetSalesMode("specific");
+    }
     el("q-pickup").value = item.pickupAddress || "";
     el("q-haul-amount").value = item.haulAmount || "";
     el("q-reqdate").value = item.requestedDate || "";
@@ -2389,6 +2541,7 @@
         notes: el("q-notes").value.trim(),
         containerType: el(quoteContainerTypeFieldId()).value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
         salesContainerId: el("q-salescont").value || "", salePrice: Number(el("q-sale-price").value) || 0,
+        salesSpecType: el("q-sales-spec-type") ? el("q-sales-spec-type").value : "", salesSpecCondition: el("q-sales-spec-condition") ? el("q-sales-spec-condition").value : "", salesSpecColor: el("q-sales-spec-color") ? el("q-sales-spec-color").value.trim() : "",
         pickupAddress: el("q-pickup").value.trim(), haulAmount: Number(el("q-haul-amount").value) || 0,
         requestedDate: el("q-reqdate").value || "", shipToAddress: el(quoteShipToFieldId()).value.trim(), poNumber: el("q-po").value.trim(),
         contacts: quoteCollectContacts(), paymentMethod: el("q-payment-method").value, doorOrientation: el("q-door-orientation").value, email: el("q-email").value.trim()
@@ -2430,6 +2583,7 @@
         status: "Draft", createdDate: today(), approvedDate: null, notes: notes,
         containerType: item.containerType || TYPES[0], monthlyRate: item.monthlyRate || 0, serviceFee: item.serviceFee || 0,
         salesContainerId: item.salesContainerId || "", salePrice: item.salePrice || 0,
+        salesSpecType: item.salesSpecType || "", salesSpecCondition: item.salesSpecCondition || "", salesSpecColor: item.salesSpecColor || "",
         pickupAddress: item.pickupAddress || "", haulAmount: item.haulAmount || 0,
         requestedDate: item.requestedDate || "", shipToAddress: item.shipToAddress || "", poNumber: item.poNumber || "",
         contacts: contacts, paymentMethod: paymentMethod, doorOrientation: doorOrientation, email: email
@@ -2466,7 +2620,10 @@
       pickupAddress: q.category === "Contract Haul" ? (q.pickupAddress || "") : "",
       amount: quoteAmount(q),
       requestedDate: q.requestedDate || "", scheduledDate: q.requestedDate || "",
-      driver: "", released: false, notes: q.notes || ""
+      driver: "", released: false, notes: q.notes || "",
+      specType: (q.category === "Sales" && !q.salesContainerId) ? (q.salesSpecType || "") : "",
+      specCondition: (q.category === "Sales" && !q.salesContainerId) ? (q.salesSpecCondition || "") : "",
+      specColor: (q.category === "Sales" && !q.salesContainerId) ? (q.salesSpecColor || "") : ""
     };
   }
   function quoteApprove(id) {
@@ -2545,6 +2702,10 @@
       if (card.scanStatus === "mismatch") statusHtml = '<div class="banner">Scanned <span class="mono">' + esc(card.scannedValue || "") + '</span> — doesn\u2019t match the expected container. Flagged for your dispatcher.</div>';
       else if (card.scanStatus === "unrecognized") statusHtml = '<div class="banner">Scanned <span class="mono">' + esc(card.scannedValue || "") + '</span> — not recognized. Flagged for your dispatcher.</div>';
       else if (card.containerId) statusHtml = '<div class="formula" style="color:var(--ok)">Container ' + esc(card.containerId) + (card.scanStatus === "matched" ? " confirmed" : card.scanStatus === "assigned" ? " assigned to this job" : "") + "</div>";
+      else if (card.specType || card.specCondition || card.specColor) {
+        var specParts = [card.specType, card.specCondition, card.specColor].filter(Boolean);
+        statusHtml = '<div class="formula">Grab any container matching: ' + esc(specParts.join(", ")) + "</div>";
+      }
     }
     var confirmHtml;
     if (card.driverConfirmed) {
@@ -2588,35 +2749,35 @@
     flash(driverConfirmLabel(card.category) + " — sent to your dispatcher for confirmation.");
     driverJobModal(dispatchCardById(cardId));
   }
-  var DRIVER_SCAN_STREAM = null;
-  function driverStopScan() {
-    if (DRIVER_SCAN_STREAM) {
-      DRIVER_SCAN_STREAM.getTracks().forEach(function (t) { t.stop(); });
-      DRIVER_SCAN_STREAM = null;
+  var GENERIC_SCAN_STREAM = null;
+  function genericStopScan() {
+    if (GENERIC_SCAN_STREAM) {
+      GENERIC_SCAN_STREAM.getTracks().forEach(function (t) { t.stop(); });
+      GENERIC_SCAN_STREAM = null;
     }
   }
-  function driverStartScan(cardId) {
-    var area = el("driver-scan-area");
+  function genericStartScan(areaId, videoId, onDecoded) {
+    var area = el(areaId);
     if (!area) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       area.innerHTML = '<div class="muted" style="color:var(--danger);font-size:12.5px">Camera access isn\u2019t available in this browser — use the manual entry below.</div>';
       return;
     }
-    area.innerHTML = '<video id="driver-scan-video" style="width:100%;max-height:45vh;border-radius:8px;background:#000;object-fit:cover" playsinline muted></video>' +
+    area.innerHTML = '<video id="' + videoId + '" style="width:100%;max-height:45vh;border-radius:8px;background:#000;object-fit:cover" playsinline muted></video>' +
       '<div class="muted" style="font-size:12px;margin-top:6px">Point the camera at the QR code.</div>';
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function (stream) {
-      DRIVER_SCAN_STREAM = stream;
-      var video = el("driver-scan-video");
-      if (!video) { driverStopScan(); return; }
+      GENERIC_SCAN_STREAM = stream;
+      var video = el(videoId);
+      if (!video) { genericStopScan(); return; }
       video.srcObject = stream;
       video.play();
-      driverScanFrame(cardId, video);
+      genericScanFrame(video, onDecoded);
     }).catch(function (err) {
       area.innerHTML = '<div class="muted" style="color:var(--danger);font-size:12.5px">Couldn\u2019t open the camera (' + esc(err.message || "permission denied") + '). Use the manual entry below instead.</div>';
     });
   }
-  function driverScanFrame(cardId, video) {
-    if (!DRIVER_SCAN_STREAM) return;
+  function genericScanFrame(video, onDecoded) {
+    if (!GENERIC_SCAN_STREAM) return;
     if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth) {
       var canvas = document.createElement("canvas");
       canvas.width = video.videoWidth; canvas.height = video.videoHeight;
@@ -2625,12 +2786,16 @@
       var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       var code = window.jsQR ? window.jsQR(imageData.data, imageData.width, imageData.height) : null;
       if (code && code.data) {
-        driverStopScan();
-        driverCaptureContainer(cardId, code.data);
+        genericStopScan();
+        onDecoded(code.data);
         return;
       }
     }
-    requestAnimationFrame(function () { driverScanFrame(cardId, video); });
+    requestAnimationFrame(function () { genericScanFrame(video, onDecoded); });
+  }
+  function driverStopScan() { genericStopScan(); }
+  function driverStartScan(cardId) {
+    genericStartScan("driver-scan-area", "driver-scan-video", function (data) { driverCaptureContainer(cardId, data); });
   }
   async function driverUpdateCardFields(cardId, patch) {
     if (!sb) return;
@@ -2641,6 +2806,13 @@
       flash("Sync error — your scan may not have saved: " + (e.message || e));
     }
   }
+  function containerMatchesSpec(c, card) {
+    if (!c) return false;
+    if (card.specType && c.type !== card.specType) return false;
+    if (card.specCondition && c.condition !== card.specCondition) return false;
+    if (card.specColor && (c.color || "").trim().toLowerCase().indexOf(card.specColor.trim().toLowerCase()) === -1) return false;
+    return true;
+  }
   function driverCaptureContainer(cardId, rawValue) {
     var card = dispatchCardById(cardId);
     if (!card) return;
@@ -2650,9 +2822,20 @@
     var found = findContainerCaseInsensitive(pool, scanned);
     var patch = { scannedValue: scanned };
     var msg;
+    var hasSpec = card.category === "Sales" && (card.specType || card.specCondition || card.specColor);
     if (!found) {
       patch.scanStatus = "unrecognized";
       msg = "That code isn\u2019t recognized — flagged for your dispatcher to follow up.";
+    } else if (!card.containerId && hasSpec) {
+      if (found.status !== "Available" || !containerMatchesSpec(found, card)) {
+        patch.scanStatus = "mismatch";
+        msg = "That container doesn\u2019t match the requested description — flagged for your dispatcher to follow up.";
+      } else {
+        patch.containerId = found.id;
+        patch.scanStatus = "assigned";
+        msg = "Container " + found.id + " matches the requested description and is assigned to this job.";
+        state.salescontainers = state.salescontainers.map(function (c) { return c.id === found.id ? Object.assign({}, c, { status: "Reserved", reservedByQuoteId: card.sourceId, reservedAt: today() }) : c; });
+      }
     } else if (!card.containerId) {
       patch.containerId = found.id;
       patch.scanStatus = "assigned";
@@ -2683,7 +2866,10 @@
   function dispatchCardSummary(c) {
     if (c.category === "Rental Delivery") return (c.containerType || "Container") + " to " + (c.shipToAddress || "address TBD");
     if (c.category === "Rental Return") return "Pick up " + containerLabel(c.containerId) + " from " + (c.shipToAddress || "address on file");
-    if (c.category === "Sales") return (c.containerId || "Container") + " sale to " + (c.shipToAddress || "address TBD");
+    if (c.category === "Sales") {
+      var specLabel = c.containerId ? c.containerId : ([c.specType, c.specCondition, c.specColor].filter(Boolean).join(", ") || "Container");
+      return specLabel + " sale to " + (c.shipToAddress || "address TBD");
+    }
     return (c.containerType ? c.containerType + " haul from " : "Haul from ") + (c.pickupAddress || "pickup TBD");
   }
   function dispatchCardsQueue() {
@@ -2751,67 +2937,88 @@
     el("dispatch-confirm-table").innerHTML =
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Type</th><th>Customer</th><th>Container</th><th>Actual date</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
   }
-  function dispatcherFullDetailsHtml(card) {
-    var cust = customerById(card.customerId);
-    var acct = cust && cust.accountNumber ? cust.accountNumber : "";
-    var rows = [];
-    rows.push(["Customer", esc(card.customerName) + (acct ? " (Acct " + esc(acct) + ")" : "")]);
-
-    if (card.sourceType === "quote") {
-      var q = quoteById(card.sourceId);
-      if (q) {
-        if (q.email) rows.push(["Email", esc(q.email)]);
-        rows.push(["Quote #", esc(q.quoteNumber)]);
-        if (q.category === "Rental") {
-          rows.push(["Container type requested", esc(q.containerType || "—")]);
-          rows.push(["Monthly rate", money(q.monthlyRate, 0)]);
-          rows.push(["Service fee", money(q.serviceFee, 0)]);
-        } else if (q.category === "Sales") {
-          var sc = salesContainerById(q.salesContainerId);
-          rows.push(["Container", esc(q.salesContainerId || "—")]);
-          if (sc) rows.push(["Book value", money(sc.bookValue, 0)]);
-          rows.push(["Sale price", money(q.salePrice, 0)]);
-        } else if (q.category === "Contract Haul") {
-          rows.push(["Container size", esc(q.containerType || "—")]);
-          rows.push(["Pick-up address", esc(q.pickupAddress || "—")]);
-          rows.push(["Haul amount", money(q.haulAmount, 0)]);
-        }
-        rows.push(["Ship-to / delivery address", esc(q.shipToAddress || "—")]);
-        rows.push(["PO #", esc(q.poNumber || "—")]);
-        rows.push(["Requested date", q.requestedDate ? fmtDate(q.requestedDate) : "—"]);
-        if (q.contacts && q.contacts.length) {
-          rows.push(["Contacts", q.contacts.map(function (c) { return esc(c.name || "(no name)") + (c.phone ? " — " + esc(c.phone) : ""); }).join("<br>")]);
-        }
-        if (q.paymentMethod) rows.push(["Payment method", esc(q.paymentMethod)]);
-        if (q.doorOrientation) rows.push(["Door orientation", esc(q.doorOrientation)]);
-        if (q.notes) rows.push(["Notes", esc(q.notes)]);
-      }
-    } else if (card.sourceType === "rental") {
-      var rental = rentalById(card.sourceId);
-      if (rental) {
-        rows.push(["Rental #", esc(rental.rentalNumber || "—")]);
-        rows.push(["Monthly rate", money(rental.monthlyRate, 0)]);
-        rows.push(["Service fee", money(rental.serviceFee, 0)]);
-        rows.push(["Start date", fmtDate(rental.startDate)]);
-        rows.push(["Requested return date", rental.requestedReturnDate ? fmtDate(rental.requestedReturnDate) : "—"]);
-        rows.push(["Ship-to address", esc(rental.shipToAddress || "—")]);
-        rows.push(["PO #", esc(rental.poNumber || "—")]);
-        if (rental.notes) rows.push(["Notes", esc(rental.notes)]);
-      }
-    }
-
-    return '<div class="tablewrap"><table class="tbl"><tbody>' +
-      rows.map(function (r) { return "<tr><td class=\"muted\" style=\"white-space:nowrap;font-weight:600\">" + r[0] + "</td><td>" + r[1] + "</td></tr>"; }).join("") +
-      "</tbody></table></div>";
+  var CONFIRM_CONTACTS = [];
+  function dispatcherRenderConfirmContacts() {
+    var wrap = el("confirm-contacts-list");
+    if (!wrap) return;
+    wrap.innerHTML = CONFIRM_CONTACTS.map(function (c, idx) {
+      return '<div class="listrow"><div style="display:flex;gap:6px;flex:1;flex-wrap:wrap">' +
+        '<input class="in" style="flex:1;min-width:90px" data-confirm-contact="name" data-index="' + idx + '" value="' + esc(c.name || "") + '" placeholder="Name">' +
+        '<input class="in" style="flex:1;min-width:90px" data-confirm-contact="phone" data-index="' + idx + '" value="' + esc(c.phone || "") + '" placeholder="Phone">' +
+        '<input class="in" style="flex:1;min-width:90px" data-confirm-contact="type" data-index="' + idx + '" value="' + esc(c.type || "") + '" placeholder="Type">' +
+        '</div><button type="button" class="btn sm ghost danger" data-act="confirm-contact-remove" data-index="' + idx + '">Remove</button></div>';
+    }).join("");
+  }
+  function dispatcherAddConfirmContactRow() {
+    CONFIRM_CONTACTS.push({ name: "", phone: "", type: "" });
+    dispatcherRenderConfirmContacts();
+  }
+  function dispatcherRemoveConfirmContactRow(index) {
+    CONFIRM_CONTACTS.splice(Number(index), 1);
+    dispatcherRenderConfirmContacts();
+  }
+  function dispatcherCollectConfirmContacts() {
+    var out = [];
+    Array.prototype.forEach.call(document.querySelectorAll("#confirm-contacts-list .listrow"), function (row) {
+      var nameInput = row.querySelector('[data-confirm-contact="name"]');
+      var phoneInput = row.querySelector('[data-confirm-contact="phone"]');
+      var typeInput = row.querySelector('[data-confirm-contact="type"]');
+      var name = nameInput ? nameInput.value.trim() : "";
+      var phone = phoneInput ? phoneInput.value.trim() : "";
+      var type = typeInput ? typeInput.value.trim() : "";
+      if (name || phone || type) out.push({ name: name, phone: phone, type: type });
+    });
+    return out;
   }
   function dispatcherConfirmModal(card) {
     if (!card) return;
     var needsContainer = card.category !== "Contract Haul";
     var flagged = card.scanStatus === "mismatch" || card.scanStatus === "unrecognized";
+    var q = card.sourceType === "quote" ? quoteById(card.sourceId) : null;
+    var rental = card.sourceType === "rental" ? rentalById(card.sourceId) : null;
+    var src = q || rental || {};
+    CONFIRM_CONTACTS = (q && q.contacts) ? q.contacts.slice() : [];
+
+    var categoryHtml = "";
+    if (card.category === "Rental Delivery") {
+      categoryHtml =
+        '<div class="fld"><label>Container type requested</label><select class="in" id="confirm-container-type">' + opt(TYPES, src.containerType || TYPES[0]) + "</select></div>" +
+        '<div class="row2"><div class="fld"><label>Monthly rate ($)</label><input class="in mono" id="confirm-monthly-rate" type="number" value="' + esc(src.monthlyRate || 0) + '"></div>' +
+        '<div class="fld"><label>Service fee ($)</label><input class="in mono" id="confirm-service-fee" type="number" value="' + esc(src.serviceFee || 0) + '"></div></div>';
+    } else if (card.category === "Rental Return") {
+      categoryHtml =
+        '<div class="row2"><div class="fld"><label>Monthly rate ($)</label><input class="in mono" id="confirm-monthly-rate" type="number" value="' + esc(src.monthlyRate || 0) + '"></div>' +
+        '<div class="fld"><label>Service fee ($)</label><input class="in mono" id="confirm-service-fee" type="number" value="' + esc(src.serviceFee || 0) + '"></div></div>' +
+        '<div class="fld"><label>Requested return date (drives the credit)</label><div class="formula">' + (rental && rental.requestedReturnDate ? fmtDate(rental.requestedReturnDate) : "—") + "</div></div>";
+    } else if (card.category === "Sales") {
+      var sc = salesContainerById((q && q.salesContainerId) || card.containerId);
+      categoryHtml =
+        (sc ? '<div class="formula">Book value (reference): ' + money(sc.bookValue, 0) + "</div>" : "") +
+        '<div class="fld"><label>Sale price ($)</label><input class="in mono" id="confirm-sale-price" type="number" value="' + esc(src.salePrice || 0) + '"></div>';
+    } else if (card.category === "Contract Haul") {
+      categoryHtml =
+        '<div class="fld"><label>Container size</label><select class="in" id="confirm-container-type">' + opt(TYPES, src.containerType || TYPES[0]) + "</select></div>" +
+        '<div class="fld"><label>Pick-up address</label><input class="in" id="confirm-pickup" value="' + esc(src.pickupAddress || "") + '"></div>' +
+        '<div class="fld"><label>Haul amount ($)</label><input class="in mono" id="confirm-haul-amount" type="number" value="' + esc(src.haulAmount || (card.amount || 0)) + '"></div>';
+    }
+
+    var contactsHtml = q
+      ? '<div class="fld"><label>Contacts</label><div id="confirm-contacts-list" class="list"></div>' +
+        '<button type="button" class="btn sm ghost" style="margin-top:6px" data-act="confirm-contact-add">+ Add contact</button></div>'
+      : "";
+
     openModal("Confirm job — " + esc(card.customerName),
       '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
-      dispatcherFullDetailsHtml(card) +
       (flagged ? '<div class="banner">Driver scanned <span class="mono">' + esc(card.scannedValue || "") + "</span> — " + (card.scanStatus === "mismatch" ? "doesn\u2019t match what was expected." : "wasn\u2019t recognized.") + " Double-check the container ID below before confirming.</div>" : "") +
+      '<div class="fld"><label>Customer</label><div class="formula">' + esc(card.customerName) + (q && q.quoteNumber ? " · " + esc(q.quoteNumber) : "") + "</div></div>" +
+      (q ? '<div class="fld"><label>Email</label><input class="in" id="confirm-email" value="' + esc(q.email || "") + '"></div>' : "") +
+      categoryHtml +
+      '<div class="fld"><label>Ship-to / delivery address</label><input class="in" id="confirm-shipto" value="' + esc(src.shipToAddress || "") + '"></div>' +
+      '<div class="fld"><label>PO #</label><input class="in" id="confirm-po" value="' + esc(src.poNumber || "") + '"></div>' +
+      contactsHtml +
+      (q ? '<div class="row2"><div class="fld"><label>Payment method</label><input class="in" id="confirm-payment-method" value="' + esc(q.paymentMethod || "") + '"></div>' +
+        '<div class="fld"><label>Door orientation</label><select class="in" id="confirm-door-orientation">' + opt([""].concat(DOOR_ORIENTATIONS), q.doorOrientation || "") + "</select></div></div>" : "") +
+      '<div class="fld"><label>Notes</label><textarea class="in" id="confirm-notes" rows="2">' + esc(src.notes || "") + "</textarea></div>" +
       (needsContainer ? '<div class="fld"><label>Container ID</label><input class="in mono" id="confirm-container" value="' + esc(card.containerId || "") + '"></div>' : "") +
       '<div class="fld"><label>' + esc(driverConfirmLabel(card.category)) + " date</label>" +
       '<div class="combo-wrap"><input type="hidden" id="confirm-date" value="' + esc(card.actualDate || today()) + '">' +
@@ -2822,45 +3029,74 @@
         : "Billing will use this date to calculate the first prorated invoice.") + "</div>",
       '<button class="btn" data-act="modal-close">Cancel</button>' +
       '<button class="btn primary" data-act="dispatch-confirm-job" data-id="' + esc(card.id) + '">Confirm &amp; send to billing</button>');
+    dispatcherRenderConfirmContacts();
   }
   function dispatcherConfirmJob(cardId) {
     var card = dispatchCardById(cardId);
     if (!card) return;
     var needsContainer = card.category !== "Contract Haul";
-    var containerId = needsContainer ? (el("confirm-container").value.trim()) : "";
+    var containerId = needsContainer ? el("confirm-container").value.trim() : "";
     if (needsContainer && !containerId) return flash("Enter the container ID before confirming");
     var actualDate = el("confirm-date").value || card.actualDate || today();
 
+    var q = card.sourceType === "quote" ? quoteById(card.sourceId) : null;
+    var rental = card.sourceType === "rental" ? rentalById(card.sourceId) : null;
+
+    var shipTo = el("confirm-shipto").value.trim();
+    var po = el("confirm-po").value.trim();
+    var notes = el("confirm-notes").value.trim();
+    var monthlyRate = el("confirm-monthly-rate") ? Number(el("confirm-monthly-rate").value) || 0 : 0;
+    var serviceFee = el("confirm-service-fee") ? Number(el("confirm-service-fee").value) || 0 : 0;
+    var salePrice = el("confirm-sale-price") ? Number(el("confirm-sale-price").value) || 0 : 0;
+    var haulAmount = el("confirm-haul-amount") ? Number(el("confirm-haul-amount").value) || 0 : (card.amount || 0);
+    var pickupAddress = el("confirm-pickup") ? el("confirm-pickup").value.trim() : "";
+    var containerType = el("confirm-container-type") ? el("confirm-container-type").value : "";
+    var email = el("confirm-email") ? el("confirm-email").value.trim() : "";
+    var paymentMethod = el("confirm-payment-method") ? el("confirm-payment-method").value.trim() : "";
+    var doorOrientation = el("confirm-door-orientation") ? el("confirm-door-orientation").value : "";
+
+    if (q) {
+      state.quotes = state.quotes.map(function (x) {
+        return x.id === q.id ? Object.assign({}, x, {
+          shipToAddress: shipTo, poNumber: po, notes: notes,
+          monthlyRate: monthlyRate, serviceFee: serviceFee, salePrice: salePrice, haulAmount: haulAmount,
+          pickupAddress: pickupAddress, containerType: containerType, email: email,
+          paymentMethod: paymentMethod, doorOrientation: doorOrientation, contacts: dispatcherCollectConfirmContacts()
+        }) : x;
+      });
+    } else if (rental) {
+      state.rentals = state.rentals.map(function (r) {
+        return r.id === rental.id ? Object.assign({}, r, { shipToAddress: shipTo, poNumber: po, notes: notes, monthlyRate: monthlyRate, serviceFee: serviceFee }) : r;
+      });
+    }
+
     if (card.category === "Rental Delivery") {
-      var q = card.sourceType === "quote" ? quoteById(card.sourceId) : null;
       state.rentals.unshift({
         id: uid(), containerId: containerId, customerId: card.customerId,
-        monthlyRate: q ? q.monthlyRate : (card.amount || 0), serviceFee: q ? q.serviceFee : 0,
+        monthlyRate: monthlyRate, serviceFee: serviceFee,
         startDate: actualDate, endDate: null,
-        poNumber: q ? q.poNumber : "", rentalNumber: "",
-        shipToAddress: card.shipToAddress || "", driver: card.driver || "", notes: "",
+        poNumber: po, rentalNumber: "",
+        shipToAddress: shipTo, driver: card.driver || "", notes: notes,
         addedToRecurring: false
       });
     } else if (card.category === "Rental Return") {
-      var rental = card.sourceType === "rental" ? rentalById(card.sourceId) : null;
       if (rental) {
         state.rentals = state.rentals.map(function (r) {
-          return r.id === rental.id ? Object.assign({}, r, { endDate: rental.requestedReturnDate || actualDate, actualReturnDate: actualDate, containerId: containerId || r.containerId }) : r;
+          return r.id === rental.id ? Object.assign({}, r, { endDate: r.requestedReturnDate || actualDate, actualReturnDate: actualDate, containerId: containerId || r.containerId }) : r;
         });
       }
     } else if (card.category === "Sales") {
       state.salescontainers = state.salescontainers.map(function (c) { return c.id === containerId ? Object.assign({}, c, { status: "Sold" }) : c; });
-      var q2 = card.sourceType === "quote" ? quoteById(card.sourceId) : null;
       state.salesinvoices.unshift({
         id: uid(), customerId: card.customerId, customerName: card.customerName,
-        containerId: containerId, salePrice: q2 ? q2.salePrice : (card.amount || 0),
-        confirmedDate: actualDate, billed: false, notes: ""
+        containerId: containerId, salePrice: salePrice,
+        confirmedDate: actualDate, billed: false, notes: notes
       });
     } else if (card.category === "Contract Haul") {
       state.hauls.unshift({
-        id: uid(), customerName: card.customerName, accountNumber: "", poNumber: "",
-        pickupAddress: card.pickupAddress || "", shipToAddress: card.shipToAddress || "",
-        serviceDate: actualDate, amount: card.amount || 0, contact: "", driver: card.driver || "", notes: "", billed: false
+        id: uid(), customerName: card.customerName, accountNumber: "", poNumber: po,
+        pickupAddress: pickupAddress, shipToAddress: shipTo,
+        serviceDate: actualDate, amount: haulAmount, contact: "", driver: card.driver || "", notes: notes, billed: false
       });
     }
 
@@ -3240,6 +3476,7 @@
     "haul-toggle-billed": function (t) { haulToggleBilled(t.getAttribute("data-id")); },
     "haul-filter": function (t) { ui.haulFilter = t.getAttribute("data-filter"); render(); },
     "sales-bill-filter": function (t) { ui.salesBillFilter = t.getAttribute("data-filter"); render(); },
+    "completed-jobs-filter": function (t) { ui.completedJobsCatFilter = t.getAttribute("data-filter"); render(); },
     "sales-bill-toggle": function (t) { salesInvoiceToggleBilled(t.getAttribute("data-id")); },
     "sales-add": function () { salesModal(null); },
     "sales-edit": function (t) { salesModal(salesContainerById(t.getAttribute("data-id"))); },
@@ -3275,6 +3512,8 @@
       el("q-newcust-name").value = ""; el("q-newcust-account").value = "";
       flash("Customer added and selected");
     },
+    "q-sales-mode": function (t) { quoteSetSalesMode(t.getAttribute("data-mode")); },
+    "q-sales-scan-start": function () { quoteSalesScanStart(); },
     "quote-salescont-pick": function (t) {
       var id = t.getAttribute("data-id");
       var c = salesContainerById(id);
@@ -3287,6 +3526,8 @@
     "quote-lineitem-add": function () { quoteAddLineItem(); },
     "quote-contact-add": function () { quoteAddContact(); },
     "quote-contact-remove": function (t) { quoteRemoveContact(t.getAttribute("data-index")); },
+    "confirm-contact-add": function () { dispatcherAddConfirmContactRow(); },
+    "confirm-contact-remove": function (t) { dispatcherRemoveConfirmContactRow(t.getAttribute("data-index")); },
     "address-pick": function (t) {
       var fieldId = t.getAttribute("data-field");
       el(fieldId).value = t.getAttribute("data-value");
@@ -3337,12 +3578,14 @@
     else if (e.target.id === "coll-search") { ui.collQ = e.target.value; renderCollectionsTable(); }
     else if (e.target.id === "haul-search") { ui.haulQ = e.target.value; renderHaulTable(); }
     else if (e.target.id === "sales-bill-search") { ui.salesBillQ = e.target.value; renderSalesBillingTable(); }
+    else if (e.target.id === "completed-jobs-search") { ui.completedJobsQ = e.target.value; renderCompletedJobsTable(); }
     else if (e.target.id === "sales-search") { ui.salesQ = e.target.value; renderSalesTable(); }
     else if (e.target.id === "quote-search") { ui.quoteQ = e.target.value; renderQuotesTable(); }
     else if (e.target.id === "r-cont-search") { el("r-cont").value = ""; renderContainerCombo(e.target.value); }
     else if (e.target.id === "r-cust-search") { el("r-cust").value = ""; renderCustomerCombo(e.target.value); }
     else if (e.target.id === "q-cust-search") { el("q-customer").value = ""; renderQuoteCustomerCombo(e.target.value); }
     else if (e.target.id === "q-salescont-search") { el("q-salescont").value = ""; el("q-bookvalue-wrap").style.display = "none"; renderSalesContainerCombo(e.target.value); }
+    else if (e.target.id === "q-sales-spec-color") { updateSalesSpecMatchInfo(); }
     else if (e.target.classList.contains("addr-input")) { renderAddressCombo(e.target.id, e.target.value); }
   });
 
@@ -3400,6 +3643,7 @@
 
     else if (e.target.classList.contains("coll-stage-select")) { setCollectionStage(e.target.getAttribute("data-id"), e.target.value); renderCollections(el("view")); }
     else if (e.target.id === "q-category") { quoteShowGroup(e.target.value); }
+    else if (e.target.id === "q-sales-spec-type" || e.target.id === "q-sales-spec-condition") { updateSalesSpecMatchInfo(); }
     else if (e.target.id === "p-role") {
       var isDriverRole = e.target.value === "driver";
       el("p-email-wrap").style.display = isDriverRole ? "none" : "";
@@ -3408,6 +3652,12 @@
     else if (e.target.id === "labels-select-all") { labelsToggleAll(e.target.checked); }
     else if (e.target.id === "q-sameaddr-check") {
       if (e.target.checked && QUOTE_LINE_ITEMS.length) el(quoteShipToFieldId()).value = QUOTE_LINE_ITEMS[0].shipToAddress || "";
+    }
+    else if (e.target.id === "q-haul-samepickup-check") {
+      if (e.target.checked && QUOTE_LINE_ITEMS.length) el("q-pickup").value = QUOTE_LINE_ITEMS[0].pickupAddress || "";
+    }
+    else if (e.target.id === "q-haul-sameship-check") {
+      if (e.target.checked && QUOTE_LINE_ITEMS.length) el("q-haul-shipto").value = QUOTE_LINE_ITEMS[0].shipToAddress || "";
     }
   });
 
