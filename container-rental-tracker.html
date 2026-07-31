@@ -3020,10 +3020,7 @@
     });
     return out;
   }
-  function dispatcherConfirmModal(card) {
-    if (!card) return;
-    var needsContainer = card.category !== "Contract Haul";
-    var flagged = card.scanStatus === "mismatch" || card.scanStatus === "unrecognized";
+  function jobDetailFieldsHtml(card) {
     var q = card.sourceType === "quote" ? quoteById(card.sourceId) : null;
     var rental = card.sourceType === "rental" ? rentalById(card.sourceId) : null;
     var src = q || rental || {};
@@ -3057,10 +3054,7 @@
         '<button type="button" class="btn sm ghost" style="margin-top:6px" data-act="confirm-contact-add">+ Add contact</button></div>'
       : "";
 
-    openModal("Confirm job — " + esc(card.customerName),
-      '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
-      (flagged ? '<div class="banner">Driver scanned <span class="mono">' + esc(card.scannedValue || "") + "</span> — " + (card.scanStatus === "mismatch" ? "doesn\u2019t match what was expected." : "wasn\u2019t recognized.") + " Double-check the container ID below before confirming.</div>" : "") +
-      '<div class="fld"><label>Customer</label><div class="formula">' + esc(card.customerName) + (q && q.quoteNumber ? " · " + esc(q.quoteNumber) : "") + "</div></div>" +
+    return '<div class="fld"><label>Customer</label><div class="formula">' + esc(card.customerName) + (q && q.quoteNumber ? " · " + esc(q.quoteNumber) : "") + "</div></div>" +
       (q ? '<div class="fld"><label>Email</label><input class="in" id="confirm-email" value="' + esc(q.email || "") + '"></div>' : "") +
       categoryHtml +
       '<div class="fld"><label>Ship-to / delivery address</label><input class="in" id="confirm-shipto" value="' + esc(src.shipToAddress || "") + '"></div>' +
@@ -3068,7 +3062,54 @@
       contactsHtml +
       (q ? '<div class="row2"><div class="fld"><label>Payment method</label><input class="in" id="confirm-payment-method" value="' + esc(q.paymentMethod || "") + '"></div>' +
         '<div class="fld"><label>Door orientation</label><select class="in" id="confirm-door-orientation">' + opt([""].concat(DOOR_ORIENTATIONS), q.doorOrientation || "") + "</select></div></div>" : "") +
-      '<div class="fld"><label>Notes</label><textarea class="in" id="confirm-notes" rows="2">' + esc(src.notes || "") + "</textarea></div>" +
+      '<div class="fld"><label>Notes</label><textarea class="in" id="confirm-notes" rows="2">' + esc(src.notes || "") + "</textarea></div>";
+  }
+  function applyJobDetailEdits(card) {
+    var q = card.sourceType === "quote" ? quoteById(card.sourceId) : null;
+    var rental = card.sourceType === "rental" ? rentalById(card.sourceId) : null;
+    var shipTo = el("confirm-shipto").value.trim();
+    var po = el("confirm-po").value.trim();
+    var notes = el("confirm-notes").value.trim();
+    var monthlyRate = el("confirm-monthly-rate") ? Number(el("confirm-monthly-rate").value) || 0 : 0;
+    var serviceFee = el("confirm-service-fee") ? Number(el("confirm-service-fee").value) || 0 : 0;
+    var salePrice = el("confirm-sale-price") ? Number(el("confirm-sale-price").value) || 0 : 0;
+    var haulAmount = el("confirm-haul-amount") ? Number(el("confirm-haul-amount").value) || 0 : (card.amount || 0);
+    var pickupAddress = el("confirm-pickup") ? el("confirm-pickup").value.trim() : "";
+    var containerType = el("confirm-container-type") ? el("confirm-container-type").value : "";
+    var email = el("confirm-email") ? el("confirm-email").value.trim() : "";
+    var paymentMethod = el("confirm-payment-method") ? el("confirm-payment-method").value.trim() : "";
+    var doorOrientation = el("confirm-door-orientation") ? el("confirm-door-orientation").value : "";
+
+    if (q) {
+      state.quotes = state.quotes.map(function (x) {
+        return x.id === q.id ? Object.assign({}, x, {
+          shipToAddress: shipTo, poNumber: po, notes: notes,
+          monthlyRate: monthlyRate, serviceFee: serviceFee, salePrice: salePrice, haulAmount: haulAmount,
+          pickupAddress: pickupAddress, containerType: containerType, email: email,
+          paymentMethod: paymentMethod, doorOrientation: doorOrientation, contacts: dispatcherCollectConfirmContacts()
+        }) : x;
+      });
+    } else if (rental) {
+      state.rentals = state.rentals.map(function (r) {
+        return r.id === rental.id ? Object.assign({}, r, { shipToAddress: shipTo, poNumber: po, notes: notes, monthlyRate: monthlyRate, serviceFee: serviceFee }) : r;
+      });
+    }
+    var amount = card.category === "Sales" ? salePrice : card.category === "Contract Haul" ? haulAmount : (monthlyRate + serviceFee);
+    return {
+      shipToAddress: card.category === "Contract Haul" ? "" : shipTo,
+      pickupAddress: card.category === "Contract Haul" ? pickupAddress : "",
+      containerType: (card.category === "Rental Delivery" || card.category === "Contract Haul") ? containerType : "",
+      amount: amount
+    };
+  }
+  function dispatcherConfirmModal(card) {
+    if (!card) return;
+    var flagged = card.scanStatus === "mismatch" || card.scanStatus === "unrecognized";
+    var needsContainer = card.category !== "Contract Haul";
+    openModal("Confirm job — " + esc(card.customerName),
+      '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
+      (flagged ? '<div class="banner">Driver scanned <span class="mono">' + esc(card.scannedValue || "") + "</span> — " + (card.scanStatus === "mismatch" ? "doesn\u2019t match what was expected." : "wasn\u2019t recognized.") + " Double-check the container ID below before confirming.</div>" : "") +
+      jobDetailFieldsHtml(card) +
       (needsContainer ? '<div class="fld"><label>Container ID</label><input class="in mono" id="confirm-container" value="' + esc(card.containerId || "") + '"></div>' : "") +
       '<div class="fld"><label>' + esc(driverConfirmLabel(card.category)) + " date</label>" +
       '<div class="combo-wrap"><input type="hidden" id="confirm-date" value="' + esc(card.actualDate || today()) + '">' +
@@ -3302,7 +3343,8 @@
     openModal((scheduled ? "Manage" : "Schedule") + " job — " + esc(card.customerName),
       '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
       scanInfo +
-      (needsContainer ? '<div class="fld"><label>Container ID</label><input class="in mono" id="dc-container" value="' + esc(card.containerId || "") + '" placeholder="Not yet captured"></div>' : "") +
+      jobDetailFieldsHtml(card) +
+      (needsContainer ? '<div class="fld"><label>Container ID</label><input class="in mono" id="confirm-container" value="' + esc(card.containerId || "") + '" placeholder="Not yet captured"></div>' : "") +
       '<div class="fld"><label>Scheduled date</label>' +
       '<div class="combo-wrap"><input type="hidden" id="dc-date" value="' + esc(card.scheduledDate || "") + '">' +
       '<input class="in" id="dc-date-display" readonly placeholder="Click to pick a date" value="' + esc(formatDateDisplay(card.scheduledDate)) + '" data-act="quote-date-toggle" data-field="dc-date" style="cursor:pointer">' +
@@ -3313,22 +3355,26 @@
       '<button class="btn" data-act="modal-close">Cancel</button>' +
       (scheduled ? '<button class="btn ghost" data-act="dispatch-to-queue" data-id="' + esc(card.id) + '">Move to queue</button>' : "") +
       '<button class="btn primary" data-act="dispatch-save" data-id="' + esc(card.id) + '">Save</button>');
+    dispatcherRenderConfirmContacts();
   }
   function dispatchCardSave(id) {
     var date = el("dc-date").value || "";
     var driver = el("dc-driver").value || "";
     var released = el("dc-released").checked;
+    var card = dispatchCardById(id);
+    if (!card) return;
     var patch = { scheduledDate: date, driver: driver, released: released };
-    var containerField = el("dc-container");
+    var containerField = el("confirm-container");
     if (containerField) {
       var newContainerId = containerField.value.trim();
-      var card = dispatchCardById(id);
-      if (card && newContainerId !== (card.containerId || "")) {
+      if (newContainerId !== (card.containerId || "")) {
         patch.containerId = newContainerId;
         patch.scanStatus = newContainerId ? "matched" : null;
         patch.scannedValue = null;
       }
     }
+    var detailPatch = applyJobDetailEdits(card);
+    Object.assign(patch, detailPatch);
     state.dispatchcards = state.dispatchcards.map(function (c) { return c.id === id ? Object.assign({}, c, patch) : c; });
     closeModal();
     flash(date ? "Scheduled for " + date + (driver ? " — " + driver : "") : "Moved to the queue");
