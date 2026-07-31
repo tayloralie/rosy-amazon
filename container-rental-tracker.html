@@ -217,6 +217,8 @@
   var SALES_STATUSES = ["Available", "Reserved", "Sold"];
   var SALES_HOLD_DAYS = 7; // a sales container reserved to an unapproved quote this long auto-releases
   var QUOTE_CATEGORIES = ["Rental", "Sales", "Contract Haul"];
+  var PAYMENT_METHODS = ["Credit Card", "Check", "Cash", "ACH / Bank Transfer", "Invoice / Net Terms"];
+  var DOOR_ORIENTATIONS = ["Facing Cab", "Doors First"];
   var DISPATCH_CATEGORIES = ["Rental Delivery", "Rental Return", "Sales", "Contract Haul"];
   var DRIVERS = ["Jim", "Brian"]; // rename here any time driver rosters change
   var STORE_KEY = "crt_data_v3";
@@ -701,7 +703,7 @@
   }
   function isOverdue(inv) { return inv.status === "unpaid" && inv.dueDate < today(); }
   function badge(status, overdue) {
-    var map = { Available: "b-ok", Rented: "b-rent", Maintenance: "b-warn", "Out of Service": "b-off", Paid: "b-ok", Unpaid: "b-warn", Credit: "b-credit", Yes: "b-ok", Pending: "b-warn", Draft: "b-warn", Driver: "b-rent", Staff: "b-ok" };
+    var map = { Available: "b-ok", Rented: "b-rent", Maintenance: "b-warn", "Out of Service": "b-off", Paid: "b-ok", Unpaid: "b-warn", Credit: "b-credit", Yes: "b-ok", Pending: "b-warn", Draft: "b-warn", Driver: "b-rent", Staff: "b-ok", Approved: "b-ok" };
     var cls = overdue ? "b-danger" : (map[status] || "b-off");
     return '<span class="badge ' + cls + '">' + (overdue ? "Overdue" : esc(status)) + "</span>";
   }
@@ -2092,7 +2094,7 @@
         "<td>" + (salesCont ? esc(salesCont.condition) : "—") + "</td>" +
         '<td class="num">' + (q.requestedDate ? fmtDate(q.requestedDate) : "—") + "</td>" +
         '<td class="num money">' + money(quoteAmount(q), 0) + "</td>" +
-        "<td>" + (q.status === "Approved" ? badge("Paid") : q.status === "Declined" ? badge("Out of Service") : badge("Draft")) + "</td>" +
+        "<td>" + (q.status === "Approved" ? badge("Approved") : q.status === "Declined" ? badge("Out of Service") : badge("Draft")) + "</td>" +
         '<td class="right nowrap">' + actions + "</td></tr>";
     }).join("");
     if (!list.length) rows = '<tr><td colspan="9" class="empty-row">No quotes match.</td></tr>';
@@ -2129,16 +2131,18 @@
     el("q-salescont-list").style.display = "block";
   }
   var QUOTE_LINE_ITEMS = [];
+  var QUOTE_CONTACTS = [];
   function quoteModal(editing) {
     CURRENT_QUOTE_EDIT_ID = editing ? editing.id : null;
-    if (!editing) { QUOTE_LINE_ITEMS = []; QUOTE_LINE_ITEM_EDIT_INDEX = null; }
+    if (!editing) { QUOTE_LINE_ITEMS = []; QUOTE_LINE_ITEM_EDIT_INDEX = null; QUOTE_CONTACTS = []; }
+    else { QUOTE_CONTACTS = (editing.contacts || []).slice(); }
     var q = editing || {
       id: "", quoteNumber: nextQuoteNumber(), category: "Rental", customerId: "", customerName: "", status: "Draft",
       createdDate: today(), approvedDate: null, notes: "",
       containerType: TYPES[0], monthlyRate: "", serviceFee: "",
       salesContainerId: "", salePrice: "",
       pickupAddress: "", haulAmount: "",
-      requestedDate: "", shipToAddress: "", poNumber: ""
+      requestedDate: "", shipToAddress: "", poNumber: "", paymentMethod: "", doorOrientation: "", email: ""
     };
     var readOnly = editing && editing.status !== "Draft";
     var dis = readOnly ? " disabled" : "";
@@ -2160,6 +2164,7 @@
         '<input class="in mono" id="q-newcust-account" placeholder="Account # (optional)">' +
         '<button type="button" class="btn sm primary" data-act="quote-newcust-create">Create &amp; select</button></div>') +
       "</div>" +
+      '<div class="fld"><label>Email</label><input class="in" id="q-email" value="' + esc(q.email || "") + '"' + dis + '></div>' +
 
       (editing ? "" : '<div class="fld" id="q-lineitems-wrap" style="display:none"><label>Line items added</label><div id="q-lineitems-list" class="list"></div></div>') +
 
@@ -2180,6 +2185,7 @@
       '<div class="quote-group" id="q-group-haul">' +
       '<div class="fld"><label>Container size</label><select class="in" id="q-haul-container-type"' + dis + '>' + opt(TYPES, q.containerType || TYPES[0]) + "</select></div>" +
       '<div class="fld"><label>Pick-up address</label><div class="combo-wrap"><input class="in addr-input" id="q-pickup" value="' + esc(q.pickupAddress) + '"' + dis + '><div class="combo-list" id="q-pickup-list"></div></div><div class="subline" id="q-pickup-hint" style="color:var(--warn)"></div></div>' +
+      '<div class="fld"><label>Ship-to / delivery address</label><div class="combo-wrap"><input class="in addr-input" id="q-haul-shipto" value="' + esc(q.shipToAddress) + '"' + dis + '><div class="combo-list" id="q-haul-shipto-list"></div></div><div class="subline" id="q-haul-shipto-hint" style="color:var(--warn)"></div></div>' +
       '<div class="fld"><label>Haul amount ($)</label><input class="in mono" id="q-haul-amount" type="number" min="0" value="' + esc(q.haulAmount) + '"' + dis + "></div>" +
       "</div>" +
 
@@ -2187,10 +2193,17 @@
       '<div class="combo-wrap"><input type="hidden" id="q-reqdate" value="' + esc(q.requestedDate || "") + '">' +
       '<input class="in" id="q-reqdate-display" readonly placeholder="Click to pick a date" value="' + esc(formatDateDisplay(q.requestedDate)) + '"' + dis + (dis ? "" : ' data-act="quote-date-toggle" data-field="q-reqdate" style="cursor:pointer"') + '>' +
       '<div class="combo-list cal-panel" id="q-reqdate-cal"></div></div></div>' +
-      '<div class="fld"><label>Ship-to / delivery address</label><div class="combo-wrap"><input class="in addr-input" id="q-shipto" value="' + esc(q.shipToAddress) + '"' + dis + '><div class="combo-list" id="q-shipto-list"></div></div><div class="subline" id="q-shipto-hint" style="color:var(--warn)"></div></div>' +
+      '<div class="fld" id="q-shipto-shared-wrap"><label>Ship-to / delivery address</label><div class="combo-wrap"><input class="in addr-input" id="q-shipto" value="' + esc(q.shipToAddress) + '"' + dis + '><div class="combo-list" id="q-shipto-list"></div></div><div class="subline" id="q-shipto-hint" style="color:var(--warn)"></div></div>' +
       (editing ? "" : '<div class="fld" id="q-sameaddr-wrap" style="display:none;margin-top:-6px">' +
         '<label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">' +
         '<input type="checkbox" id="q-sameaddr-check" style="width:auto"> Use the same address as line item 1</label></div>') +
+      '<div class="fld"><label>Contacts</label>' +
+      '<div class="quickadd" id="q-contacts-wrap" style="display:none"><div id="q-contacts-list" class="list"></div></div>' +
+      '<div class="row2"><input class="in" id="q-contact-name" placeholder="Name"' + dis + '><input class="in" id="q-contact-phone" placeholder="Phone"' + dis + "></div>" +
+      (readOnly ? "" : '<button type="button" class="btn sm ghost" style="margin-top:6px" data-act="quote-contact-add">+ Add contact</button>') +
+      "</div>" +
+      '<div class="row2"><div class="fld"><label>Payment method</label><select class="in" id="q-payment-method"' + dis + '>' + opt([""].concat(PAYMENT_METHODS), q.paymentMethod || "") + "</select></div>" +
+      '<div class="fld"><label>Door orientation</label><select class="in" id="q-door-orientation"' + dis + '>' + opt([""].concat(DOOR_ORIENTATIONS), q.doorOrientation || "") + "</select></div></div>" +
       '<div class="fld"><label>PO # (optional)</label><input class="in" id="q-po" value="' + esc(q.poNumber) + '"' + dis + "></div>" +
       '<div class="fld"><label>Notes</label><textarea class="in" id="q-notes" rows="2"' + dis + '>' + esc(q.notes) + "</textarea></div>" +
       (editing ? "" : '<button type="button" class="btn sm ghost" id="q-lineitem-add-btn" data-act="quote-lineitem-add">+ Add another line item to this quote</button>' +
@@ -2199,12 +2212,15 @@
       (readOnly ? "" : '<button class="btn primary" data-act="quote-save" data-id="' + esc(editing ? editing.id : "") + '">' + (editing ? "Save changes" : "Save quote(s)") + "</button>"));
     quoteShowGroup(q.category);
     if (!editing) renderQuoteLineItemsList();
+    renderQuoteContactsList();
   }
   function quoteShowGroup(cat) {
     ["rental", "sales", "haul"].forEach(function (slug) {
       var elg = el("q-group-" + slug);
       if (elg) elg.style.display = slug === quoteCatSlug(cat) ? "grid" : "none";
     });
+    var sharedShipto = el("q-shipto-shared-wrap");
+    if (sharedShipto) sharedShipto.style.display = cat === "Contract Haul" ? "none" : "";
   }
   function quoteLineItemSummary(item) {
     if (item.category === "Rental") return esc(item.containerType) + " — " + money(item.monthlyRate, 0) + "/mo + " + money(item.serviceFee, 0) + " fee" + (item.requestedDate ? " — delivery " + fmtDate(item.requestedDate) : "");
@@ -2228,6 +2244,9 @@
   function quoteContainerTypeFieldId() {
     return el("q-category").value === "Contract Haul" ? "q-haul-container-type" : "q-container-type";
   }
+  function quoteShipToFieldId() {
+    return el("q-category").value === "Contract Haul" ? "q-haul-shipto" : "q-shipto";
+  }
   function quoteReadCurrentLineItem() {
     var category = el("q-category").value;
     return {
@@ -2235,7 +2254,7 @@
       containerType: el(quoteContainerTypeFieldId()).value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
       salesContainerId: el("q-salescont").value || "", salePrice: Number(el("q-sale-price").value) || 0,
       pickupAddress: el("q-pickup").value.trim(), haulAmount: Number(el("q-haul-amount").value) || 0,
-      requestedDate: el("q-reqdate").value || "", shipToAddress: el("q-shipto").value.trim(), poNumber: el("q-po").value.trim()
+      requestedDate: el("q-reqdate").value || "", shipToAddress: el(quoteShipToFieldId()).value.trim(), poNumber: el("q-po").value.trim()
     };
   }
   function quoteClearLineItemFields() {
@@ -2243,7 +2262,36 @@
     el("q-salescont").value = ""; el("q-salescont-search").value = ""; el("q-sale-price").value = "";
     el("q-bookvalue-wrap").style.display = "none";
     el("q-pickup").value = ""; el("q-haul-amount").value = "";
-    el("q-reqdate").value = ""; el("q-reqdate-display").value = ""; el("q-shipto").value = ""; el("q-po").value = "";
+    el("q-reqdate").value = ""; el("q-reqdate-display").value = ""; el("q-shipto").value = ""; if (el("q-haul-shipto")) el("q-haul-shipto").value = ""; el("q-po").value = "";
+  }
+  function renderQuoteContactsList() {
+    var wrap = el("q-contacts-wrap");
+    if (!wrap) return;
+    if (!QUOTE_CONTACTS.length) { wrap.style.display = "none"; return; }
+    wrap.style.display = "block";
+    el("q-contacts-list").innerHTML = QUOTE_CONTACTS.map(function (c, idx) {
+      return '<div class="listrow"><div>' + esc(c.name || "(no name)") + (c.phone ? " — " + esc(c.phone) : "") + '</div><button type="button" class="btn sm ghost danger" data-act="quote-contact-remove" data-index="' + idx + '">Remove</button></div>';
+    }).join("");
+  }
+  function quoteAddContact() {
+    var name = el("q-contact-name").value.trim();
+    var phone = el("q-contact-phone").value.trim();
+    if (!name && !phone) return flash("Enter a contact name or number first");
+    QUOTE_CONTACTS.push({ name: name, phone: phone });
+    el("q-contact-name").value = ""; el("q-contact-phone").value = "";
+    renderQuoteContactsList();
+    flash("Contact added");
+  }
+  function quoteRemoveContact(index) {
+    QUOTE_CONTACTS.splice(Number(index), 1);
+    renderQuoteContactsList();
+  }
+  function quoteCollectContacts() {
+    var contacts = QUOTE_CONTACTS.slice();
+    var name = el("q-contact-name") ? el("q-contact-name").value.trim() : "";
+    var phone = el("q-contact-phone") ? el("q-contact-phone").value.trim() : "";
+    if (name || phone) contacts.push({ name: name, phone: phone });
+    return contacts;
   }
   function quoteLineItemHasContent(item) {
     if (item.category === "Rental") return item.monthlyRate > 0;
@@ -2259,6 +2307,7 @@
     if (existing) {
       el("q-customer").value = existing.id;
       el("q-cust-search").value = existing.name + (existing.accountNumber ? " (" + existing.accountNumber + ")" : "");
+      if (el("q-email") && !el("q-email").value.trim() && existing.email) el("q-email").value = existing.email;
       return existing.id;
     }
     var obj = { id: uid(), name: typed, accountNumber: "", contact: "", email: "", phone: "", billingAddress: "", notes: "" };
@@ -2306,6 +2355,7 @@
     el("q-reqdate").value = item.requestedDate || "";
     el("q-reqdate-display").value = formatDateDisplay(item.requestedDate);
     el("q-shipto").value = item.shipToAddress || "";
+    if (el("q-haul-shipto")) el("q-haul-shipto").value = item.shipToAddress || "";
     el("q-po").value = item.poNumber || "";
     QUOTE_LINE_ITEM_EDIT_INDEX = index;
     var addBtn = el("q-lineitem-add-btn");
@@ -2340,7 +2390,8 @@
         containerType: el(quoteContainerTypeFieldId()).value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
         salesContainerId: el("q-salescont").value || "", salePrice: Number(el("q-sale-price").value) || 0,
         pickupAddress: el("q-pickup").value.trim(), haulAmount: Number(el("q-haul-amount").value) || 0,
-        requestedDate: el("q-reqdate").value || "", shipToAddress: el("q-shipto").value.trim(), poNumber: el("q-po").value.trim()
+        requestedDate: el("q-reqdate").value || "", shipToAddress: el(quoteShipToFieldId()).value.trim(), poNumber: el("q-po").value.trim(),
+        contacts: quoteCollectContacts(), paymentMethod: el("q-payment-method").value, doorOrientation: el("q-door-orientation").value, email: el("q-email").value.trim()
       };
       var priorSalesId = prior.category === "Sales" ? prior.salesContainerId : null;
       if (priorSalesId && priorSalesId !== obj.salesContainerId) {
@@ -2365,6 +2416,10 @@
     if (!items.length) return flash("Add at least one line item before saving");
 
     var notes = el("q-notes").value.trim();
+    var contacts = quoteCollectContacts();
+    var paymentMethod = el("q-payment-method").value;
+    var doorOrientation = el("q-door-orientation").value;
+    var email = el("q-email").value.trim();
     var batchId = items.length > 1 ? uid() : null;
     var createdCount = 0;
     var lastNumber = "";
@@ -2376,7 +2431,8 @@
         containerType: item.containerType || TYPES[0], monthlyRate: item.monthlyRate || 0, serviceFee: item.serviceFee || 0,
         salesContainerId: item.salesContainerId || "", salePrice: item.salePrice || 0,
         pickupAddress: item.pickupAddress || "", haulAmount: item.haulAmount || 0,
-        requestedDate: item.requestedDate || "", shipToAddress: item.shipToAddress || "", poNumber: item.poNumber || ""
+        requestedDate: item.requestedDate || "", shipToAddress: item.shipToAddress || "", poNumber: item.poNumber || "",
+        contacts: contacts, paymentMethod: paymentMethod, doorOrientation: doorOrientation, email: email
       };
       state.quotes.unshift(newObj);
       if (category === "Sales" && newObj.salesContainerId) {
@@ -2445,7 +2501,7 @@
     var confirmNote = c.driverConfirmed
       ? '<div class="subline" style="margin-top:6px;color:var(--ok)">\u2705 ' + esc(driverConfirmLabel(c.category)) + " — " + esc(fmtDate(c.actualDate) || "") + (c.dispatcherConfirmed ? " — confirmed by dispatcher" : " — awaiting dispatcher") + "</div>"
       : '<div class="subline" style="margin-top:6px">Tap to ' + esc(driverConfirmLabel(c.category).toLowerCase()) + "</div>";
-    return '<div class="card drag-card-off" data-act="driver-job-open" data-id="' + esc(c.id) + '" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + (c.driverConfirmed ? ");opacity:.75" : ")") + ';cursor:pointer">' +
+    return '<div class="card drag-card-off" data-act="driver-job-open" data-id="' + esc(c.id) + '" style="padding:16px;margin-bottom:12px;border-left:5px solid var(--' + dispatchDriverAccentVar(c.category) + (c.driverConfirmed ? ");opacity:.7;background:var(--surface-2);filter:grayscale(.3)" : ")") + ';cursor:pointer">' +
       '<span class="badge ' + dispatchCatClass(c.category) + '">' + esc(c.category) + "</span>" +
       '<h3 style="margin:10px 0 4px">' + esc(c.customerName) + "</h3>" +
       '<div class="muted">' + esc(dispatchCardSummary(c)) + "</div>" +
@@ -2695,12 +2751,66 @@
     el("dispatch-confirm-table").innerHTML =
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Type</th><th>Customer</th><th>Container</th><th>Actual date</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
   }
+  function dispatcherFullDetailsHtml(card) {
+    var cust = customerById(card.customerId);
+    var acct = cust && cust.accountNumber ? cust.accountNumber : "";
+    var rows = [];
+    rows.push(["Customer", esc(card.customerName) + (acct ? " (Acct " + esc(acct) + ")" : "")]);
+
+    if (card.sourceType === "quote") {
+      var q = quoteById(card.sourceId);
+      if (q) {
+        if (q.email) rows.push(["Email", esc(q.email)]);
+        rows.push(["Quote #", esc(q.quoteNumber)]);
+        if (q.category === "Rental") {
+          rows.push(["Container type requested", esc(q.containerType || "—")]);
+          rows.push(["Monthly rate", money(q.monthlyRate, 0)]);
+          rows.push(["Service fee", money(q.serviceFee, 0)]);
+        } else if (q.category === "Sales") {
+          var sc = salesContainerById(q.salesContainerId);
+          rows.push(["Container", esc(q.salesContainerId || "—")]);
+          if (sc) rows.push(["Book value", money(sc.bookValue, 0)]);
+          rows.push(["Sale price", money(q.salePrice, 0)]);
+        } else if (q.category === "Contract Haul") {
+          rows.push(["Container size", esc(q.containerType || "—")]);
+          rows.push(["Pick-up address", esc(q.pickupAddress || "—")]);
+          rows.push(["Haul amount", money(q.haulAmount, 0)]);
+        }
+        rows.push(["Ship-to / delivery address", esc(q.shipToAddress || "—")]);
+        rows.push(["PO #", esc(q.poNumber || "—")]);
+        rows.push(["Requested date", q.requestedDate ? fmtDate(q.requestedDate) : "—"]);
+        if (q.contacts && q.contacts.length) {
+          rows.push(["Contacts", q.contacts.map(function (c) { return esc(c.name || "(no name)") + (c.phone ? " — " + esc(c.phone) : ""); }).join("<br>")]);
+        }
+        if (q.paymentMethod) rows.push(["Payment method", esc(q.paymentMethod)]);
+        if (q.doorOrientation) rows.push(["Door orientation", esc(q.doorOrientation)]);
+        if (q.notes) rows.push(["Notes", esc(q.notes)]);
+      }
+    } else if (card.sourceType === "rental") {
+      var rental = rentalById(card.sourceId);
+      if (rental) {
+        rows.push(["Rental #", esc(rental.rentalNumber || "—")]);
+        rows.push(["Monthly rate", money(rental.monthlyRate, 0)]);
+        rows.push(["Service fee", money(rental.serviceFee, 0)]);
+        rows.push(["Start date", fmtDate(rental.startDate)]);
+        rows.push(["Requested return date", rental.requestedReturnDate ? fmtDate(rental.requestedReturnDate) : "—"]);
+        rows.push(["Ship-to address", esc(rental.shipToAddress || "—")]);
+        rows.push(["PO #", esc(rental.poNumber || "—")]);
+        if (rental.notes) rows.push(["Notes", esc(rental.notes)]);
+      }
+    }
+
+    return '<div class="tablewrap"><table class="tbl"><tbody>' +
+      rows.map(function (r) { return "<tr><td class=\"muted\" style=\"white-space:nowrap;font-weight:600\">" + r[0] + "</td><td>" + r[1] + "</td></tr>"; }).join("") +
+      "</tbody></table></div>";
+  }
   function dispatcherConfirmModal(card) {
     if (!card) return;
     var needsContainer = card.category !== "Contract Haul";
     var flagged = card.scanStatus === "mismatch" || card.scanStatus === "unrecognized";
     openModal("Confirm job — " + esc(card.customerName),
       '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
+      dispatcherFullDetailsHtml(card) +
       (flagged ? '<div class="banner">Driver scanned <span class="mono">' + esc(card.scannedValue || "") + "</span> — " + (card.scanStatus === "mismatch" ? "doesn\u2019t match what was expected." : "wasn\u2019t recognized.") + " Double-check the container ID below before confirming.</div>" : "") +
       (needsContainer ? '<div class="fld"><label>Container ID</label><input class="in mono" id="confirm-container" value="' + esc(card.containerId || "") + '"></div>' : "") +
       '<div class="fld"><label>' + esc(driverConfirmLabel(card.category)) + " date</label>" +
@@ -3149,6 +3259,7 @@
       el("q-customer").value = id;
       el("q-cust-search").value = c ? (c.name + (c.accountNumber ? " (" + c.accountNumber + ")" : "")) : id;
       el("q-cust-list").style.display = "none";
+      if (el("q-email")) el("q-email").value = c && c.email ? c.email : "";
     },
     "quote-newcust-toggle": function () { var d = el("q-newcust"); d.style.display = d.style.display === "none" ? "grid" : "none"; },
     "quote-newcust-create": function () {
@@ -3174,6 +3285,8 @@
       if (c) { wrap.style.display = ""; disp.textContent = money(c.bookValue); } else { wrap.style.display = "none"; }
     },
     "quote-lineitem-add": function () { quoteAddLineItem(); },
+    "quote-contact-add": function () { quoteAddContact(); },
+    "quote-contact-remove": function (t) { quoteRemoveContact(t.getAttribute("data-index")); },
     "address-pick": function (t) {
       var fieldId = t.getAttribute("data-field");
       el(fieldId).value = t.getAttribute("data-value");
@@ -3294,7 +3407,7 @@
     }
     else if (e.target.id === "labels-select-all") { labelsToggleAll(e.target.checked); }
     else if (e.target.id === "q-sameaddr-check") {
-      if (e.target.checked && QUOTE_LINE_ITEMS.length) el("q-shipto").value = QUOTE_LINE_ITEMS[0].shipToAddress || "";
+      if (e.target.checked && QUOTE_LINE_ITEMS.length) el(quoteShipToFieldId()).value = QUOTE_LINE_ITEMS[0].shipToAddress || "";
     }
   });
 
