@@ -2114,6 +2114,35 @@
     if (!q || !q.batchId) return [];
     return state.quotes.filter(function (x) { return x.batchId === q.batchId && x.id !== q.id; });
   }
+  function quoteBatchModal(batchId, currentId) {
+    var items = state.quotes.filter(function (q) { return q.batchId === batchId; }).sort(function (a, b) { return a.quoteNumber.localeCompare(b.quoteNumber); });
+    if (!items.length) return;
+    var first = items[0];
+    var rows = items.map(function (q) {
+      var actions = "";
+      if (q.status === "Draft") {
+        actions = '<button class="btn sm primary" data-act="quote-approve" data-id="' + esc(q.id) + '">Approve</button> ' +
+          '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">Edit</button> ' +
+          '<button class="btn sm ghost danger" data-act="quote-decline" data-id="' + esc(q.id) + '">Decline</button>';
+      } else {
+        actions = '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">' + (q.status === "Declined" ? "View" : "Edit") + "</button>";
+      }
+      return "<tr" + (q.id === currentId ? ' style="background:var(--surface-2)"' : "") + ">" +
+        '<td class="cid">' + esc(q.quoteNumber) + "</td>" +
+        "<td>" + quoteLineItemSummary(q) + "</td>" +
+        '<td class="num">' + (q.requestedDate ? fmtDate(q.requestedDate) : "—") + "</td>" +
+        '<td class="num money">' + money(quoteAmount(q)) + "</td>" +
+        "<td>" + (q.status === "Approved" ? badge("Approved") : q.status === "Declined" ? badge("Out of Service") : badge("Draft")) + "</td>" +
+        '<td class="right nowrap">' + actions + "</td></tr>";
+    }).join("");
+    var total = items.reduce(function (s, q) { return s + quoteAmount(q); }, 0);
+    openModal("Quote request — " + esc(first.customerName) + " (" + items.length + " items)",
+      '<div class="formula">' + esc(first.category) + (first.poNumber ? " · PO " + esc(first.poNumber) : " · no PO") + " · Total " + money(total) + "</div>" +
+      (first.email ? '<div class="subline">Email: ' + esc(first.email) + "</div>" : "") +
+      (first.contacts && first.contacts.length ? '<div class="subline">Contacts: ' + first.contacts.map(function (c) { return esc(c.name || "") + (c.phone ? " — " + esc(c.phone) : ""); }).join(", ") + "</div>" : "") +
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Quote #</th><th>Item</th><th>Requested date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>",
+      '<button class="btn" data-act="modal-close">Close</button>');
+  }
   function nextQuoteNumber() { return "Q-" + String(state.quotes.length + 1).padStart(5, "0"); }
   function quoteAmount(q) {
     if (q.category === "Rental") return Number(q.monthlyRate) || 0;
@@ -2157,17 +2186,17 @@
         actions =
           '<button class="btn sm primary" data-act="quote-approve" data-id="' + esc(q.id) + '">Approve</button> ' +
           '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">Edit</button> ' +
-          '<button class="btn sm ghost danger" data-act="quote-decline" data-id="' + esc(q.id) + '">Decline</button>';
+          '<button class="btn sm ghost danger" data-act="quote-decline" data-id="' + esc(q.id) + '">Decline</button> ' +
+          '<button class="btn sm ghost danger" data-act="quote-delete" data-id="' + esc(q.id) + '">Delete</button>';
       } else {
-        actions = '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">' + (q.status === "Declined" ? "View" : "Edit") + "</button>";
+        actions = '<button class="btn sm ghost" data-act="quote-edit" data-id="' + esc(q.id) + '">' + (q.status === "Declined" ? "View" : "Edit") + "</button> " +
+          '<button class="btn sm ghost danger" data-act="quote-delete" data-id="' + esc(q.id) + '">Delete</button>';
       }
       var salesCont = q.category === "Sales" ? salesContainerById(q.salesContainerId) : null;
       var sizeDisplay = q.category === "Sales" ? (salesCont ? salesCont.type : "—") : (q.category === "Rental" || q.category === "Contract Haul") ? (q.containerType || "—") : "—";
       var siblings = quoteSiblings(q);
       return "<tr>" +
-        '<td class="cid">' + esc(q.quoteNumber) + (siblings.length ? '<div class="subline">Linked: ' + siblings.map(function (s) {
-          return '<a href="#" data-act="quote-edit" data-id="' + esc(s.id) + '" style="color:var(--primary-2);font-weight:600">' + esc(s.quoteNumber) + "</a>";
-        }).join(", ") + "</div>" : "") + "</td>" +
+        '<td class="cid">' + esc(q.quoteNumber) + (siblings.length ? '<div class="subline"><a href="#" data-act="quote-batch-view" data-batch="' + esc(q.batchId) + '" data-id="' + esc(q.id) + '" style="color:var(--primary-2);font-weight:600">View all ' + (siblings.length + 1) + " items</a></div>" : "") + "</td>" +
         "<td>" + esc(q.customerName) + "</td>" +
         '<td><span class="badge ' + quoteCatBadgeClass(q.category) + '">' + esc(q.category) + "</span></td>" +
         "<td>" + esc(sizeDisplay) + "</td>" +
@@ -2228,12 +2257,11 @@
     var readOnly = editing && editing.status === "Declined";
     var dis = readOnly ? " disabled" : "";
     var siblings = editing ? quoteSiblings(editing) : [];
-    openModal(editing ? (readOnly ? "View quote " + esc(q.quoteNumber) : "Edit quote " + esc(q.quoteNumber)) : "New quote",
+    openModal(editing ? "Edit quote " + esc(q.quoteNumber) : "New quote",
       (siblings.length
-        ? '<div class="banner" style="margin-bottom:0">Part of the same request as: ' + siblings.map(function (s) {
-            return '<a href="#" data-act="quote-edit" data-id="' + esc(s.id) + '" style="color:var(--primary-2);font-weight:600">' + esc(s.quoteNumber) + "</a>";
-          }).join(", ") + "</div>"
+        ? '<div class="banner" style="margin-bottom:0">Part of a ' + (siblings.length + 1) + '-item request — <a href="#" data-act="quote-batch-view" data-batch="' + esc(editing.batchId) + '" data-id="' + esc(editing.id) + '" style="color:var(--primary-2);font-weight:600">view all items together</a></div>'
         : "") +
+      (editing ? '<div class="fld"><label>Status</label><select class="in" id="q-status">' + opt(QUOTE_STATUSES, q.status) + "</select></div>" : "") +
       '<div class="fld"><label>Category</label><select class="in" id="q-category"' + dis + '>' + opt(QUOTE_CATEGORIES, q.category) + "</select></div>" +
 
       '<div class="fld"><label>Customer</label>' +
@@ -2310,8 +2338,8 @@
       '<div class="fld"><label>Notes</label><textarea class="in" id="q-notes" rows="2"' + dis + '>' + esc(q.notes) + "</textarea></div>" +
       (editing ? "" : '<button type="button" class="btn sm ghost" id="q-lineitem-add-btn" data-act="quote-lineitem-add">+ Add another line item to this quote</button>' +
         '<div class="muted" style="font-size:12px">Each line item gets its own delivery date and becomes its own quote card once saved.</div>'),
-      '<button class="btn" data-act="modal-close">' + (readOnly ? "Close" : "Cancel") + "</button>" +
-      (readOnly ? "" : '<button class="btn primary" data-act="quote-save" data-id="' + esc(editing ? editing.id : "") + '">' + (editing ? "Save changes" : "Save quote(s)") + "</button>"));
+      '<button class="btn" data-act="modal-close">Cancel</button>' +
+      '<button class="btn primary" data-act="quote-save" data-id="' + esc(editing ? editing.id : "") + '">' + (editing ? "Save changes" : "Save quote(s)") + "</button>");
     quoteShowGroup(q.category);
     if (!editing) renderQuoteLineItemsList();
     renderQuoteContactsList();
@@ -2573,7 +2601,7 @@
       var obj = {
         id: origId, quoteNumber: prior.quoteNumber, batchId: prior.batchId || null,
         category: category, customerId: custId, customerName: customerName,
-        status: prior.status, createdDate: prior.createdDate, approvedDate: prior.approvedDate,
+        status: el("q-status") ? el("q-status").value : prior.status, createdDate: prior.createdDate, approvedDate: prior.approvedDate,
         notes: el("q-notes").value.trim(),
         containerType: el(quoteContainerTypeFieldId()).value, monthlyRate: Number(el("q-monthly-rate").value) || 0, serviceFee: Number(el("q-service-fee").value) || 0,
         salesContainerId: el("q-salescont").value || "", salePrice: Number(el("q-sale-price").value) || 0,
@@ -2605,8 +2633,9 @@
           });
         });
       }
+      quoteApplyStatusTransition(obj, prior.status, obj.status);
       closeModal();
-      flash("Quote updated");
+      flash("Quote updated" + (prior.status !== obj.status ? " — status changed to " + obj.status : ""));
       commit();
       return;
     }
@@ -2691,7 +2720,47 @@
     if (!confirm("Decline quote " + q.quoteNumber + "?")) return;
     releaseQuoteSalesHold(q);
     state.quotes = state.quotes.map(function (x) { return x.id === id ? Object.assign({}, x, { status: "Declined" }) : x; });
-    flash("Quote declined");
+    var linkedCard = state.dispatchcards.find(function (c) { return c.sourceType === "quote" && c.sourceId === id && !c.dispatcherConfirmed; });
+    if (linkedCard) state.dispatchcards = state.dispatchcards.filter(function (c) { return c.id !== linkedCard.id; });
+    flash("Quote declined" + (linkedCard ? " — its dispatch card was removed" : ""));
+    commit();
+  }
+  function quoteLinkedUnconfirmedCard(id) {
+    return state.dispatchcards.find(function (c) { return c.sourceType === "quote" && c.sourceId === id && !c.dispatcherConfirmed; }) || null;
+  }
+  function quoteLinkedConfirmedCard(id) {
+    return state.dispatchcards.find(function (c) { return c.sourceType === "quote" && c.sourceId === id && c.dispatcherConfirmed; }) || null;
+  }
+  function quoteApplyStatusTransition(quoteObj, oldStatus, newStatus) {
+    if (oldStatus === newStatus) return;
+    if (oldStatus === "Approved" && newStatus !== "Approved") {
+      var toRemove = quoteLinkedUnconfirmedCard(quoteObj.id);
+      if (toRemove) state.dispatchcards = state.dispatchcards.filter(function (c) { return c.id !== toRemove.id; });
+      if (newStatus !== "Approved") releaseQuoteSalesHold(quoteObj);
+    }
+    if (newStatus === "Declined" && oldStatus !== "Approved") {
+      releaseQuoteSalesHold(quoteObj);
+    }
+    if (newStatus === "Approved" && oldStatus !== "Approved") {
+      quoteObj.approvedDate = today();
+      if (quoteObj.category === "Sales" && quoteObj.salesContainerId) {
+        state.salescontainers = state.salescontainers.map(function (c) {
+          return c.id === quoteObj.salesContainerId ? Object.assign({}, c, { status: "Reserved", reservedByQuoteId: quoteObj.id, reservedAt: today() }) : c;
+        });
+      }
+      state.dispatchcards.unshift(dispatchCardFromQuote(quoteObj));
+    }
+  }
+  function quoteDelete(id) {
+    var q = quoteById(id);
+    if (!q) return;
+    if (quoteLinkedConfirmedCard(id)) return flash("This quote has already been confirmed and sent to billing — it can't be deleted.");
+    if (!confirm("Delete quote " + q.quoteNumber + "? This can't be undone.")) return;
+    releaseQuoteSalesHold(q);
+    var linkedCard = quoteLinkedUnconfirmedCard(id);
+    if (linkedCard) state.dispatchcards = state.dispatchcards.filter(function (c) { return c.id !== linkedCard.id; });
+    state.quotes = state.quotes.filter(function (x) { return x.id !== id; });
+    flash("Quote deleted");
     commit();
   }
 
@@ -3584,6 +3653,8 @@
     "quote-edit": function (t) { quoteModal(quoteById(t.getAttribute("data-id"))); },
     "quote-approve": function (t) { quoteApprove(t.getAttribute("data-id")); },
     "quote-decline": function (t) { quoteDecline(t.getAttribute("data-id")); },
+    "quote-delete": function (t) { quoteDelete(t.getAttribute("data-id")); },
+    "quote-batch-view": function (t) { quoteBatchModal(t.getAttribute("data-batch"), t.getAttribute("data-id")); },
     "quote-save": function (t) { quoteSave(t.getAttribute("data-id")); },
     "quote-cat-filter": function (t) { ui.quoteCatFilter = t.getAttribute("data-filter"); render(); },
     "quote-status-filter": function (t) { ui.quoteStatusFilter = t.getAttribute("data-filter"); render(); },
