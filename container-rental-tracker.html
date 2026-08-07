@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Western Mobile Storage — Rental & Billing Tracker</title>
+<title>Western Mobile Storage — Tracker</title>
 <style>
   :root {
     --bg:#eef1ec; --surface:#ffffff; --surface-2:#f5f7f3; --ink:#161d18;
@@ -2339,7 +2339,10 @@
       (editing ? "" : '<button type="button" class="btn sm ghost" id="q-lineitem-add-btn" data-act="quote-lineitem-add">+ Add another line item to this quote</button>' +
         '<div class="muted" style="font-size:12px">Each line item gets its own delivery date and becomes its own quote card once saved.</div>'),
       '<button class="btn" data-act="modal-close">Cancel</button>' +
-      '<button class="btn primary" data-act="quote-save" data-id="' + esc(editing ? editing.id : "") + '">' + (editing ? "Save changes" : "Save quote(s)") + "</button>");
+      (editing
+        ? '<button class="btn primary" data-act="quote-save" data-id="' + esc(editing.id) + '">Save changes</button>'
+        : '<button class="btn ghost" data-act="quote-save" data-approve="0">Save as draft</button>' +
+          '<button class="btn primary" data-act="quote-save" data-approve="1">Save &amp; approve — send to dispatch</button>'));
     quoteShowGroup(q.category);
     if (!editing) renderQuoteLineItemsList();
     renderQuoteContactsList();
@@ -2588,7 +2591,7 @@
     }
     renderQuoteLineItemsList();
   }
-  function quoteSave(origId) {
+  function quoteSave(origId, autoApprove) {
     quoteEnsureCustomerSelected();
     var custId = el("q-customer").value;
     if (!custId) return flash("Enter a customer");
@@ -2654,12 +2657,14 @@
     var po = el("q-po").value.trim();
     var batchId = items.length > 1 ? uid() : null;
     var createdCount = 0;
+    var scheduledCount = 0;
     var lastNumber = "";
+    var newDispatchCards = [];
     items.forEach(function (item) {
       var newObj = {
         id: uid(), quoteNumber: nextQuoteNumber(), batchId: batchId,
         category: category, customerId: custId, customerName: customerName,
-        status: "Draft", createdDate: today(), approvedDate: null, notes: notes,
+        status: autoApprove ? "Approved" : "Draft", createdDate: today(), approvedDate: autoApprove ? today() : null, notes: notes,
         containerType: item.containerType || TYPES[0], monthlyRate: item.monthlyRate || 0, serviceFee: item.serviceFee || 0,
         salesContainerId: item.salesContainerId || "", salePrice: item.salePrice || 0,
         salesSpecType: item.salesSpecType || "", salesSpecCondition: item.salesSpecCondition || "", salesSpecColor: item.salesSpecColor || "",
@@ -2673,12 +2678,26 @@
           return c.id === newObj.salesContainerId ? Object.assign({}, c, { status: "Reserved", reservedByQuoteId: newObj.id, reservedAt: today() }) : c;
         });
       }
+      if (autoApprove) {
+        var card = dispatchCardFromQuote(newObj);
+        state.dispatchcards.unshift(card);
+        newDispatchCards.push(card);
+        if (card.scheduledDate) scheduledCount++;
+      }
       createdCount++;
       lastNumber = newObj.quoteNumber;
     });
     QUOTE_LINE_ITEMS = [];
     closeModal();
-    flash(createdCount === 1 ? "Quote saved as draft (" + lastNumber + ")" : createdCount + " quote cards saved as drafts");
+    if (autoApprove) {
+      var onCalendar = scheduledCount, inQueue = createdCount - scheduledCount;
+      var parts = [];
+      if (onCalendar) parts.push(onCalendar + " on the calendar");
+      if (inQueue) parts.push(inQueue + " in the queue");
+      flash((createdCount === 1 ? "Quote " + lastNumber + " approved" : createdCount + " quotes approved") + " — " + parts.join(", "));
+    } else {
+      flash(createdCount === 1 ? "Quote saved as draft (" + lastNumber + ")" : createdCount + " quote cards saved as drafts");
+    }
     commit();
   }
   function releaseQuoteSalesHold(q) {
@@ -3001,10 +3020,8 @@
 
   function renderDispatch(v) {
     v.innerHTML =
-      '<div class="pagehead"><div><h2>Dispatch</h2><div class="sub">Approved jobs, scheduled onto drivers and dates</div></div></div>' +
-      '<div class="panel"><h3>Needs your confirmation<span class="count" id="dispatch-confirm-count"></span></h3>' +
-      '<p class="panel-sub">The driver has finished these — verify the container and date, then confirm to send them to billing.</p>' +
-      '<div id="dispatch-confirm-table"></div></div>' +
+      '<div class="pagehead"><div><h2>Dispatch</h2><div class="sub">Approved jobs, scheduled onto drivers and dates</div></div>' +
+      '<button class="btn primary" data-act="quote-add">+ New quote</button></div>' +
       '<div class="panel"><h3>Queue<span class="count" id="dispatch-queue-count"></span></h3>' +
       '<p class="panel-sub">Approved jobs with no date yet — assign one to put them on the calendar.</p>' +
       '<div id="dispatch-queue-table"></div></div>' +
@@ -3030,7 +3047,10 @@
       '<div class="chips" style="margin-top:12px">' +
       '<span class="badge b-ok">Rental delivery</span> <span class="badge b-danger">Rental return</span> <span class="badge b-rent">Sales</span> <span class="badge b-credit">Contract haul</span> ' +
       '<span class="muted" style="font-size:12.5px">👁 = released to driver · numbered dot = assigned driver</span>' +
-      "</div></div>";
+      "</div></div>" +
+      '<div class="panel"><h3>Needs your confirmation<span class="count" id="dispatch-confirm-count"></span></h3>' +
+      '<p class="panel-sub">The driver has finished these — verify the container and date, then confirm to send them to billing.</p>' +
+      '<div id="dispatch-confirm-table"></div></div>';
     renderDispatchConfirmTable();
     renderDispatchQueueTable();
     renderDispatchCalendar();
@@ -3320,9 +3340,38 @@
     if (!driverName) return "";
     return '<span class="driver-badge" style="background:' + driverColor(driverName) + '" title="Assigned to ' + esc(driverName) + '">' + esc(driverName.charAt(0).toUpperCase()) + "</span>";
   }
+  function sizeAbbrev(type) {
+    if (!type) return "";
+    var m = type.match(/(\d+)/);
+    var num = m ? m[1] : "";
+    if (!num) return "";
+    var isHC = /high cube/i.test(type);
+    return num + "ft" + (isHC ? " HC" : "");
+  }
+  function dispatchPillSize(c) {
+    if (c.category === "Rental Return") {
+      var cont = containerById(c.containerId);
+      return cont ? sizeAbbrev(cont.type) : "";
+    }
+    if (c.category === "Sales") {
+      var sc = salesContainerById(c.containerId);
+      if (sc) return sizeAbbrev(sc.type);
+      if (c.specType) return sizeAbbrev(c.specType);
+      return "";
+    }
+    return sizeAbbrev(c.containerType);
+  }
+  function dispatchPillLabel(c) {
+    var size = dispatchPillSize(c);
+    var prefix = size ? size + " " : "";
+    if (c.category === "Rental Delivery") return prefix + "delivery to " + c.customerName;
+    if (c.category === "Rental Return") return prefix + "return " + c.customerName;
+    if (c.category === "Sales") return prefix + "SALE to " + c.customerName;
+    return prefix + "haul from " + c.customerName;
+  }
   function dispatchCardPillHtml(c) {
     var flagged = c.scanStatus === "mismatch" || c.scanStatus === "unrecognized";
-    var label = (flagged ? "⚠ " : "") + (c.released ? "👁 " : "") + driverBadgeHtml(c.driver) + esc(c.customerName);
+    var label = (flagged ? "⚠ " : "") + (c.released ? "👁 " : "") + driverBadgeHtml(c.driver) + esc(dispatchPillLabel(c));
     return '<div class="dcard drag-card ' + dispatchPillClass(c.category) + (c.released ? " dcard-released" : "") + '" draggable="true" data-act="dispatch-manage" data-id="' + esc(c.id) + '" title="' + esc(c.category) + ": " + esc(c.customerName) + (c.driver ? " — " + esc(c.driver) : " — unassigned") + (c.released ? " — released to driver" : "") + (flagged ? " — SCAN FLAGGED: " + esc(c.scannedValue || "") : "") + '">' + label + "</div>";
   }
   function renderDispatchCalendar() {
@@ -3655,7 +3704,7 @@
     "quote-decline": function (t) { quoteDecline(t.getAttribute("data-id")); },
     "quote-delete": function (t) { quoteDelete(t.getAttribute("data-id")); },
     "quote-batch-view": function (t) { quoteBatchModal(t.getAttribute("data-batch"), t.getAttribute("data-id")); },
-    "quote-save": function (t) { quoteSave(t.getAttribute("data-id")); },
+    "quote-save": function (t) { quoteSave(t.getAttribute("data-id") || null, t.getAttribute("data-approve") === "1"); },
     "quote-cat-filter": function (t) { ui.quoteCatFilter = t.getAttribute("data-filter"); render(); },
     "quote-status-filter": function (t) { ui.quoteStatusFilter = t.getAttribute("data-filter"); render(); },
     "quote-cust-pick": function (t) {
