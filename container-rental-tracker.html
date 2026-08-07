@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Western Mobile Storage — Tracker</title>
+<title>Western Mobile Storage — Rental & Billing Tracker</title>
 <style>
   :root {
     --bg:#eef1ec; --surface:#ffffff; --surface-2:#f5f7f3; --ink:#161d18;
@@ -3297,7 +3297,8 @@
         "<td>" + esc(dispatchCardSummary(c)) + "</td>" +
         '<td class="num money">' + money(c.amount) + "</td>" +
         '<td class="num">' + (c.requestedDate ? fmtDate(c.requestedDate) : "—") + "</td>" +
-        '<td class="right"><button class="btn sm primary" data-act="dispatch-schedule" data-id="' + esc(c.id) + '">Schedule</button></td></tr>';
+        '<td class="right nowrap"><button class="btn sm primary" data-act="dispatch-schedule" data-id="' + esc(c.id) + '">Schedule</button> ' +
+        '<button class="btn sm ghost danger" data-act="dispatch-delete-prompt" data-id="' + esc(c.id) + '">Delete</button></td></tr>';
     }).join("");
     if (!queue.length) rows = '<tr><td colspan="6" class="empty-row">Nothing waiting — everything approved has a date.</td></tr>';
     el("dispatch-queue-table").innerHTML =
@@ -3443,6 +3444,42 @@
     }).join("");
     el("dispatch-calendar").innerHTML = html;
   }
+  function dispatchDeletePromptModal(cardId) {
+    var card = dispatchCardById(cardId);
+    if (!card) return;
+    if (card.dispatcherConfirmed) return flash("This job has already been confirmed and sent to billing — it can't be deleted.");
+    openModal("Delete job — " + esc(card.customerName),
+      '<div class="formula">' + esc(card.category) + " · " + esc(dispatchCardSummary(card)) + "</div>" +
+      '<div class="fld"><label>Reason for deletion</label>' +
+      '<div class="chips" id="dc-delete-reason-chips">' +
+      ["Cancelled", "Test", "Other"].map(function (r) {
+        return '<button type="button" class="chip" data-act="dc-delete-reason-pick" data-reason="' + r + '">' + r + "</button>";
+      }).join("") + "</div>" +
+      '<input type="hidden" id="dc-delete-reason" value="">' +
+      '<div id="dc-delete-other-wrap" style="display:none;margin-top:8px"><input class="in" id="dc-delete-other-text" placeholder="Briefly describe why"></div>' +
+      "</div>",
+      '<button class="btn" data-act="modal-close">Cancel</button>' +
+      '<button class="btn danger" data-act="dispatch-delete-confirm" data-id="' + esc(card.id) + '">Delete job</button>');
+  }
+  function dispatchDeleteCard(cardId) {
+    var card = dispatchCardById(cardId);
+    if (!card) return;
+    var reason = el("dc-delete-reason").value;
+    if (!reason) return flash("Pick a reason first");
+    var otherText = reason === "Other" ? el("dc-delete-other-text").value.trim() : "";
+    if (reason === "Other" && !otherText) return flash("Add a brief description for \u201cOther\u201d");
+    if (!confirm("Delete this job (" + reason + (otherText ? ": " + otherText : "") + ")? This can't be undone.")) return;
+    if (card.sourceType === "quote") {
+      var noteLine = "[Dispatch job deleted — " + reason + (otherText ? ": " + otherText : "") + ", " + fmtDate(today()) + "]";
+      state.quotes = state.quotes.map(function (q) {
+        return q.id === card.sourceId ? Object.assign({}, q, { notes: (q.notes ? q.notes + "\n" : "") + noteLine }) : q;
+      });
+    }
+    state.dispatchcards = state.dispatchcards.filter(function (c) { return c.id !== cardId; });
+    closeModal();
+    flash("Job deleted (" + reason + ")");
+    commit();
+  }
   function dispatchCardModal(card) {
     var scheduled = !!card.scheduledDate;
     var driverOpts = '<option value="">Unassigned</option>' + DRIVERS.map(function (d) {
@@ -3471,6 +3508,7 @@
       '<div class="fld"><label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">' +
       '<input type="checkbox" id="dc-released" style="width:auto"' + (card.released ? " checked" : "") + "> Released for driver viewing</label></div>",
       '<button class="btn" data-act="modal-close">Cancel</button>' +
+      '<button class="btn ghost danger" data-act="dispatch-delete-prompt" data-id="' + esc(card.id) + '">Delete</button>' +
       (scheduled ? '<button class="btn ghost" data-act="dispatch-to-queue" data-id="' + esc(card.id) + '">Move to queue</button>' : "") +
       '<button class="btn primary" data-act="dispatch-save" data-id="' + esc(card.id) + '">Save</button>');
     dispatcherRenderConfirmContacts();
@@ -3763,6 +3801,15 @@
     "dispatch-manage": function (t) { dispatchCardModal(dispatchCardById(t.getAttribute("data-id"))); },
     "dispatch-save": function (t) { dispatchCardSave(t.getAttribute("data-id")); },
     "dispatch-to-queue": function (t) { dispatchMoveToQueue(t.getAttribute("data-id")); },
+    "dispatch-delete-prompt": function (t) { dispatchDeletePromptModal(t.getAttribute("data-id")); },
+    "dispatch-delete-confirm": function (t) { dispatchDeleteCard(t.getAttribute("data-id")); },
+    "dc-delete-reason-pick": function (t) {
+      var reason = t.getAttribute("data-reason");
+      el("dc-delete-reason").value = reason;
+      Array.prototype.forEach.call(document.querySelectorAll("#dc-delete-reason-chips .chip"), function (chip) { chip.classList.remove("on"); });
+      t.classList.add("on");
+      el("dc-delete-other-wrap").style.display = reason === "Other" ? "block" : "none";
+    },
     "dispatch-confirm-open": function (t) { dispatcherConfirmModal(dispatchCardById(t.getAttribute("data-id"))); },
     "dispatch-confirm-job": function (t) { dispatcherConfirmJob(t.getAttribute("data-id")); },
     "dispatch-view-mode": function (t) { ui.dispatchViewMode = t.getAttribute("data-mode"); render(); },
