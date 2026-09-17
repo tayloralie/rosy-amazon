@@ -1588,24 +1588,44 @@
     }).join("");
     if (!newList.length) newRows = '<tr><td colspan="8" class="empty-row">No new rentals delivered in ' + monthLabel(ym) + ".</td></tr>";
 
-    /* Stage 2: returns — three independent checklist actions */
-    var retRows = retList.map(function (r) {
+    /* Stage 2: returns — three independent sections */
+    var pickupRows = retList.map(function (r) {
       var pickupInv = state.invoices.find(function (i) { return i.rentalId === r.id && i.kind === "pickup"; });
+      var billedLocked = pickupInv && pickupInv.status === "paid";
+      var billedBtn = '<button class="btn sm ' + (billedLocked ? "ghost" : (pickupInv ? "primary" : "ghost")) + '" data-act="bill-return-billed" data-id="' + esc(r.id) + '">' + (billedLocked ? "Billed — locked" : pickupInv ? "Billed — undo" : "Mark billed") + "</button>";
+      return "<tr>" +
+        '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
+        "<td>" + customerCellHtml(r.customerId) + "</td>" +
+        '<td class="num">' + fmtDate(r.endDate) + "</td>" +
+        '<td class="num money">' + money(r.serviceFee || 0) + "</td>" +
+        '<td class="right">' + billedBtn + "</td></tr>";
+    }).join("");
+    if (!retList.length) pickupRows = '<tr><td colspan="5" class="empty-row">No returns recorded in ' + monthLabel(ym) + ".</td></tr>";
+
+    var creditRows = retList.map(function (r) {
       var creditInv = state.invoices.find(function (i) { return i.rentalId === r.id && i.kind === "credit"; });
       var credit = returnProrateCredit(r.monthlyRate, r.endDate);
-      var billedLocked = pickupInv && pickupInv.status === "paid";
-      var billedBtn = '<button class="btn sm ' + (billedLocked ? "ghost" : (pickupInv ? "primary" : "ghost")) + '" data-act="bill-return-billed" data-id="' + esc(r.id) + '">' + (billedLocked ? "Billed — locked" : "Billed") + "</button>";
-      var creditBtn = '<button class="btn sm ' + (creditInv ? "primary" : "ghost") + '" data-act="bill-return-credit" data-id="' + esc(r.id) + '">Issued Credit</button>';
-      var removedBtn = '<button class="btn sm ' + (!r.addedToRecurring ? "primary" : "ghost") + '" data-act="bill-return-removed" data-id="' + esc(r.id) + '">Removed from Recurring</button>';
+      var creditBtn = '<button class="btn sm ' + (creditInv ? "primary" : "ghost") + '" data-act="bill-return-credit" data-id="' + esc(r.id) + '">' + (creditInv ? "Credit issued — undo" : "Issue credit") + "</button>";
       return "<tr>" +
         '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
         "<td>" + customerCellHtml(r.customerId) + "</td>" +
         '<td class="num">' + fmtDate(r.endDate) + "</td>" +
         '<td class="num" style="color:var(--credit)">-' + money(credit) + "</td>" +
-        '<td class="num">' + money(r.serviceFee || 0, 0) + "</td>" +
-        '<td class="right nowrap">' + billedBtn + " " + creditBtn + " " + removedBtn + "</td></tr>";
+        '<td class="right">' + creditBtn + "</td></tr>";
     }).join("");
-    if (!retList.length) retRows = '<tr><td colspan="6" class="empty-row">No returns recorded in ' + monthLabel(ym) + ".</td></tr>";
+    if (!retList.length) creditRows = '<tr><td colspan="5" class="empty-row">No returns recorded in ' + monthLabel(ym) + ".</td></tr>";
+
+    var removedRows = retList.map(function (r) {
+      var removed = !r.addedToRecurring;
+      var removedBtn = '<button class="btn sm ' + (removed ? "primary" : "ghost") + '" data-act="bill-return-removed" data-id="' + esc(r.id) + '">' + (removed ? "Removed — undo" : "Remove from recurring") + "</button>";
+      return "<tr>" +
+        '<td class="cid">' + esc(containerLabel(r.containerId)) + "</td>" +
+        "<td>" + customerCellHtml(r.customerId) + "</td>" +
+        '<td class="num">' + fmtDate(r.endDate) + "</td>" +
+        '<td class="num">' + money(r.monthlyRate) + "/mo</td>" +
+        '<td class="right">' + removedBtn + "</td></tr>";
+    }).join("");
+    if (!retList.length) removedRows = '<tr><td colspan="5" class="empty-row">No returns recorded in ' + monthLabel(ym) + ".</td></tr>";
 
     /* Stage 3: needs recurring — stays visible after marking, for confirmation this month */
     var pendingRows = pendingList.map(function (r) {
@@ -1647,8 +1667,14 @@
       '<div class="formula" style="margin-bottom:10px">proration = (monthly rate ÷ days in ' + monthLabel(ym) + ') × (days in month − delivery day)</div>' +
       '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Delivered</th><th>Service fee</th><th>Month</th><th>Proration</th><th>Total</th><th></th></tr></thead><tbody>' + newRows + "</tbody></table></div></div>" +
 
-      '<div class="panel"><h3><span class="stage-badge">2</span>&nbsp; Returns — ' + monthLabel(ym) + '</h3><p class="panel-sub">Three independent steps per return — click to mark each done, click again to undo.</p>' +
-      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Returned</th><th>Credit</th><th>Pickup fee</th><th></th></tr></thead><tbody>' + retRows + "</tbody></table></div></div>" +
+      '<div class="panel"><h3><span class="stage-badge">2a</span>&nbsp; Pickup fee billing — ' + monthLabel(ym) + '</h3><p class="panel-sub">Bill the customer the pickup fee for each container returned this month.</p>' +
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Returned</th><th>Pickup fee</th><th></th></tr></thead><tbody>' + pickupRows + "</tbody></table></div></div>" +
+
+      '<div class="panel"><h3><span class="stage-badge">2b</span>&nbsp; Return credit — ' + monthLabel(ym) + '</h3><p class="panel-sub">Prorated credit for the unused portion of the month, off the originally requested return date.</p>' +
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Returned</th><th>Credit</th><th></th></tr></thead><tbody>' + creditRows + "</tbody></table></div></div>" +
+
+      '<div class="panel"><h3><span class="stage-badge">2c</span>&nbsp; Removed from recurring — ' + monthLabel(ym) + '</h3><p class="panel-sub">Take each returned container off the standing recurring roster.</p>' +
+      '<div class="tablewrap"><table class="tbl"><thead><tr><th>Container</th><th>Customer</th><th>Returned</th><th>Rate</th><th></th></tr></thead><tbody>' + removedRows + "</tbody></table></div></div>" +
 
       '<div class="panel"><h3><span class="stage-badge">3</span>&nbsp; Needs to be added to recurring</h3>' +
       '<p class="panel-sub">Rentals delivered in ' + monthLabel(prevMonthKey(ym)) + ' that haven\'t been returned, plus anything older still not flagged. Once marked, it stays here for confirmation but won\'t bill on the recurring roster until ' + monthLabel(nextMonthKey(ym)) + '.</p>' +
