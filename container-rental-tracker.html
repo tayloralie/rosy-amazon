@@ -237,7 +237,7 @@
     fleetQ: "", fleetFilter: "All", fleetType: "",
     custQ: "",
     rentalView: "active", rentalQ: "",
-    billMonth: nowMonth(), billingExpandCustomerId: null,
+    billMonth: nowMonth(), billingExpandRentalId: null,
     collQ: "", collStageFilter: "open",
     haulQ: "", haulFilter: "all",
     salesQ: "", salesFilter: "all",
@@ -1566,10 +1566,12 @@
     if (!c) return true;
     return !c.accountNumber || !c.email || !c.billingAddress;
   }
-  function billingNewRentalCustomerCellHtml(customerId) {
+  function billingNewRentalCustomerCellHtml(customerId, rentalId) {
     var incomplete = customerIsIncomplete(customerId);
-    return customerCellHtml(customerId) +
-      (incomplete ? '<div class="subline"><a href="#" data-act="bill-cust-expand" data-id="' + esc(customerId) + '" style="color:var(--warn);font-weight:600">\u26A0 Missing info — add details</a></div>' : "");
+    var acct = customerAccountNumber(customerId);
+    var nameHtml = '<a href="#" data-act="bill-cust-expand" data-id="' + esc(customerId) + '" data-rental-id="' + esc(rentalId) + '" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted);cursor:pointer">' + esc(customerName(customerId)) + "</a>";
+    return nameHtml + (acct ? '<div class="subline mono">Acct ' + esc(acct) + "</div>" : "") +
+      (incomplete ? '<div class="subline"><a href="#" data-act="bill-cust-expand" data-id="' + esc(customerId) + '" data-rental-id="' + esc(rentalId) + '" style="color:var(--warn);font-weight:600">\u26A0 Missing info — add details</a></div>' : "");
   }
   function billingCustomerExpandRowHtml(customerId) {
     var c = customerById(customerId) || {};
@@ -1601,7 +1603,7 @@
         ? '<button class="btn sm ' + (existingInv.status === "paid" ? "ghost" : "danger") + '" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">' + (existingInv.status === "paid" ? "Paid — locked" : "Undo") + "</button>"
         : '<button class="btn sm primary" data-act="bill-new-toggle" data-id="' + esc(r.id) + '">Done</button>';
       return "<tr>" +
-        "<td>" + billingNewRentalCustomerCellHtml(r.customerId) + "</td>" +
+        "<td>" + billingNewRentalCustomerCellHtml(r.customerId, r.id) + "</td>" +
         "<td>" + esc(cont ? cont.type : "—") + "</td>" +
         '<td class="num">' + money(r.monthlyRate, 0) + "</td>" +
         '<td class="num">' + money(r.serviceFee || 0, 0) + "</td>" +
@@ -1612,7 +1614,7 @@
         '<td class="num">' + fmtDate(r.startDate) + "</td>" +
         '<td class="num money">' + money(total, 0) + "</td>" +
         "<td>" + actionBtn + "</td></tr>" +
-        (ui.billingExpandCustomerId === r.customerId ? billingCustomerExpandRowHtml(r.customerId) : "");
+        (ui.billingExpandRentalId === r.id ? billingCustomerExpandRowHtml(r.customerId) : "");
     }).join("");
     if (!newList.length) newRows = '<tr><td colspan="11" class="empty-row">No new rentals delivered in ' + monthLabel(ym) + ".</td></tr>";
 
@@ -3757,8 +3759,8 @@
     "rental-schedule-return-confirm": function (t) { rentalScheduleReturnConfirm(t.getAttribute("data-id")); },
     "rental-view": function (t) { ui.rentalView = t.getAttribute("data-view"); render(); },
     "bill-new-toggle": function (t) { toggleNewRentalInvoice(t.getAttribute("data-id")); },
-    "bill-cust-expand": function (t) { ui.billingExpandCustomerId = t.getAttribute("data-id"); render(); },
-    "bill-cust-collapse": function () { ui.billingExpandCustomerId = null; render(); },
+    "bill-cust-expand": function (t) { ui.billingExpandRentalId = t.getAttribute("data-rental-id"); render(); },
+    "bill-cust-collapse": function () { ui.billingExpandRentalId = null; render(); },
     "bill-cust-save": function (t) {
       var id = t.getAttribute("data-id");
       state.customers = state.customers.map(function (c) {
@@ -3770,7 +3772,7 @@
           billingAddress: el("bill-cust-baddr").value.trim()
         }) : c;
       });
-      ui.billingExpandCustomerId = null;
+      ui.billingExpandRentalId = null;
       flash("Customer info updated");
       commit();
     },
